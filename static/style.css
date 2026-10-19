@@ -309,6 +309,11 @@ tbody tr:hover {
   color: var(--text);
 }
 
+/* Keep long titles from running under the close button */
+#modal-name {
+  padding-right: 2.5rem;
+}
+
 .modal-tabs {
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -441,4 +446,82 @@ tbody tr:hover {
 .muted {
   color: var(--dim);
   font-size: 0.9rem;
+}
+
+@media (max-width: 640px) {
+  header {
+    padding: 2rem 1rem 1.5rem;
+  }
+
+  header h1 {
+    font-size: 1.9rem;
+  }
+
+  main {
+    padding: 1rem 0.75rem 2rem;
+  }
+
+  /* Cards fit two-up instead of one-per-row */
+  .cards {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+  }
+
+  /* Tab buttons on one line, filter on its own full-width row */
+  .tabs {
+    flex-wrap: wrap;
+  }
+
+  .filter {
+    flex: 1 0 100%;
+    margin-left: 0;
+  }
+
+  .filter input {
+    flex: 1;
+    width: auto;
+  }
+
+  #filter-count {
+    white-space: nowrap;
+  }
+
+  /* Tables scroll horizontally inside the card instead of crushing columns */
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  th, td {
+    padding: 0.5rem;
+  }
+
+  .chart-pane {
+    height: 300px;
+  }
+
+  /* Modal fills more of the screen; tabs wrap; detail labels stack */
+  .modal {
+    padding: 0.5rem;
+  }
+
+  .modal-card {
+    max-height: 92vh;
+    padding: 1rem;
+  }
+
+  .modal-tabs {
+    flex-wrap: wrap;
+  }
+
+  .modal-image {
+    max-height: 220px;
+  }
+
+  .modal-details {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-details dd {
+    margin-bottom: 0.4rem;
+  }
 }
