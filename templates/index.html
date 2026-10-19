@@ -1,3 +1,32 @@
+{% macro launch_table(set_name, launches, note, with_status=false, hidden=false) -%}
+<div class="table-wrap" id="tab-{{ set_name }}"{% if hidden %} hidden{% endif %}>
+  <table>
+    <thead>
+      <tr>
+        <th>Date (UTC)</th><th>Mission</th><th>Provider</th><th>Pad</th>{% if with_status %}<th>Status</th>{% endif %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for launch in launches %}
+      <tr data-set="{{ set_name }}" data-idx="{{ loop.index0 }}">
+        <td>{{ launch.net | replace('T', ' ') | truncate(16, true, '') }}</td>
+        <td>{{ launch.name }}</td>
+        <td>{{ (launch.launch_service_provider or {}).name | default('—') }}</td>
+        <td>{{ (launch.pad or {}).name | default('—') }}</td>
+        {%- if with_status %}
+        <td>
+          <span class="status status-{{ (launch.status or {}).abbrev | default('tbd') | lower | replace(' ', '-') }}">
+            {{ (launch.status or {}).name | default('Unknown') }}
+          </span>
+        </td>
+        {%- endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="table-note">{{ note }}</p>
+</div>
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,7 +39,7 @@
 <body>
   <header>
     <h1>Rocket Analytics</h1>
-    <p class="chart-note">"Observed" rockets are those seen in the launches listed below — their launch counts reflect all-time totals.</p>
+    <p class="header-note">"Observed" rockets are those seen in the launches listed below — their launch counts reflect all-time totals.</p>
     <p class="generated">
       Generated <span id="generated" data-ts="{{ generated_at }}"></span> ·
       <a href="https://github.com/JoelEager/rocket-analytics" target="_blank" rel="noopener">GitHub</a> ·
@@ -47,9 +76,9 @@
     <section class="charts">
       <div class="chart-box">
         <h2>All-time launches (observed rockets)</h2>
-        <div class="tabs">
-          <button class="tab active" data-chart="rocket">By rocket</button>
-          <button class="tab" data-chart="manufacturer">By manufacturer</button>
+        <div class="tabs" id="chart-tabs">
+          <button class="tab active" data-pane="chart-rocket">By rocket</button>
+          <button class="tab" data-pane="chart-manufacturer">By manufacturer</button>
         </div>
         <div class="chart-pane" id="chart-rocket">
           <canvas id="byRocket"></canvas>
@@ -63,8 +92,8 @@
     <section>
       <h2>Launch details</h2>
       <div class="tabs" id="launch-tabs">
-        <button class="tab active" data-tab="upcoming">Upcoming</button>
-        <button class="tab" data-tab="past">Previous</button>
+        <button class="tab active" data-pane="tab-upcoming">Upcoming</button>
+        <button class="tab" data-pane="tab-past">Previous</button>
         <span class="tab-hint">Click a row for details</span>
         <div class="filter">
           <input id="filter" type="search" placeholder="Filter launches..." autocomplete="off">
@@ -72,49 +101,8 @@
         </div>
       </div>
 
-      <div class="table-wrap" id="tab-upcoming">
-        <table>
-          <thead>
-            <tr><th>Date (UTC)</th><th>Mission</th><th>Provider</th><th>Pad</th></tr>
-          </thead>
-          <tbody>
-            {% for launch in upcoming %}
-            <tr data-set="upcoming" data-idx="{{ loop.index0 }}">
-              <td>{{ launch.net | replace('T', ' ') | truncate(16, true, '') }}</td>
-              <td>{{ launch.name }}</td>
-              <td>{{ (launch.launch_service_provider or {}).name | default('—') }}</td>
-              <td>{{ (launch.pad or {}).name | default('—') }}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        <p class="table-note">Showing the next {{ upcoming | length }} launches</p>
-      </div>
-
-      <div class="table-wrap" id="tab-past" hidden>
-        <table>
-          <thead>
-            <tr><th>Date (UTC)</th><th>Mission</th><th>Provider</th><th>Pad</th><th>Status</th></tr>
-          </thead>
-          <tbody>
-            {% for launch in previous %}
-            {% set status = (launch.status or {}).name | default('Unknown') %}
-            <tr data-set="past" data-idx="{{ loop.index0 }}">
-              <td>{{ launch.net | replace('T', ' ') | truncate(16, true, '') }}</td>
-              <td>{{ launch.name }}</td>
-              <td>{{ (launch.launch_service_provider or {}).name | default('—') }}</td>
-              <td>{{ (launch.pad or {}).name | default('—') }}</td>
-              <td>
-                <span class="status status-{{ (launch.status or {}).abbrev | default('tbd') | lower | replace(' ', '-') }}">
-                  {{ status }}
-                </span>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        <p class="table-note">Showing the last {{ previous | length }} launches</p>
-      </div>
+      {{ launch_table('upcoming', upcoming, 'Showing the next ' ~ upcoming | length ~ ' launches') }}
+      {{ launch_table('past', previous, 'Showing the last ' ~ previous | length ~ ' launches', with_status=true, hidden=true) }}
     </section>
   </main>
 
@@ -123,10 +111,10 @@
       <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
       <h2 id="modal-name"></h2>
       <div class="modal-tabs">
-        <button class="modal-tab active" data-mtab="overview">Launch</button>
-        <button class="modal-tab" data-mtab="entities">Hardware & Orgs</button>
-        <button class="modal-tab" data-mtab="updates">Updates</button>
-        <button class="modal-tab" data-mtab="links">Links</button>
+        <button class="tab active" data-pane="mtab-overview">Launch</button>
+        <button class="tab" data-pane="mtab-entities">Hardware & Orgs</button>
+        <button class="tab" data-pane="mtab-updates">Updates</button>
+        <button class="tab" data-pane="mtab-links">Links</button>
       </div>
       <div class="modal-pane" id="mtab-overview">
         <img id="modal-image" class="modal-image" hidden alt="">
@@ -150,55 +138,39 @@
   <script type="application/json" id="data-stats">{{ stats | tojson }}</script>
 
   <script>
-    document.getElementById('generated').textContent =
-      new Date(document.getElementById('generated').dataset.ts)
-        .toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'});
+    const $ = id => document.getElementById(id);
+    const readJson = id => JSON.parse($(id).textContent);
 
-    const filterInput = document.getElementById('filter');
-    const filterCount = document.getElementById('filter-count');
-
-    function applyFilter() {
-      const q = filterInput.value.trim().toLowerCase();
-      document.querySelectorAll('.table-wrap tbody tr').forEach(tr => {
-        tr.hidden = q && !tr.textContent.toLowerCase().includes(q);
-      });
-      if (q) {
-        const shown = document.querySelector('.table-wrap:not([hidden])')
-          .querySelectorAll('tbody tr:not([hidden])').length;
-        filterCount.textContent = `${shown} matches`;
-      } else {
-        filterCount.textContent = '';
-      }
-    }
-    filterInput.addEventListener('input', applyFilter);
-
-    const readJson = id => JSON.parse(document.getElementById(id).textContent);
     const LAUNCHES = {upcoming: readJson('data-upcoming'), past: readJson('data-previous')};
     const ENTITIES = readJson('data-entities');
     const STATS = readJson('data-stats');
 
-    const modal = document.getElementById('modal');
-    const fmt = s => s ? s.replace('T', ' ').slice(0, 16) + ' UTC' : null;
-    const fmtLocal = s => s ? new Date(s)
-      .toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'}) : null;
+    // Formatting and markup helpers
     const esc = s => String(s).replace(/[&<>"']/g,
       c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const fmtUtc = s => s ? s.replace('T', ' ').slice(0, 16) + ' UTC' : null;
+    const fmtLocal = s => s ? new Date(s)
+      .toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'}) : null;
     const num = (v, unit) => v != null ? Number(v).toLocaleString() + (unit ? ' ' + unit : '') : null;
     const yesNo = v => v == null ? null : (v ? 'Yes' : 'No');
     const extLink = (label, url) => url
       ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : '';
 
-    function dlRows(pairs) {
-      return pairs
-        .filter(([, v]) => v != null && v !== '')
-        .map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`)
-        .join('');
-    }
+    $('generated').textContent = fmtLocal($('generated').dataset.ts);
 
-    const FIELDS = [
-      ['Date', d => fmt(d.net)],
+    // Render [label, value] pairs as <dt>/<dd>, skipping empty values
+    const dlRows = pairs => pairs
+      .filter(([, v]) => v != null && v !== '')
+      .map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`)
+      .join('');
+
+    // Evaluate [label, getter] field definitions against an object
+    const fieldRows = (obj, defs) => dlRows(defs.map(([l, get]) => [l, get(obj)]));
+
+    const LAUNCH_FIELDS = [
+      ['Date', d => fmtUtc(d.net)],
       ['Status', d => d.status],
-      ['Launch window', d => d.window_start && `${fmt(d.window_start)} – ${fmt(d.window_end)}`],
+      ['Launch window', d => d.window_start && `${fmtUtc(d.window_start)} – ${fmtUtc(d.window_end)}`],
       ['Mission', d => d.mission_name],
       ['Type', d => d.mission_type],
       ['Orbit', d => d.orbit],
@@ -216,80 +188,98 @@
         .filter(([v]) => v).map(([v, u]) => v + u).join(' ') || null;
     };
 
-    const attempts = (d, key) => {
-      const total = d['attempts_' + key];
-      if (total == null) return null;
-      const yr = d['attempts_' + key + '_year'];
-      return `${total}${yr != null ? ` (${yr} this year)` : ''}`;
-    };
+    // Launch-record rows shared by provider, agency, and rocket sections
+    const RECORD_FIELDS = [
+      ['Launches', e => e.launches],
+      ['Successful', e => e.successful],
+      ['Failed', e => e.failed],
+      ['Pending', e => e.pending],
+      ['Success streak', e => e.streak],
+      ['Landings', e => e.landings_attempted != null
+        ? `${e.landings_successful}/${e.landings_attempted}` : null],
+      ['Failed landings', e => e.landings_failed],
+      ['Landing streak', e => e.landing_streak],
+    ];
 
-    const STAT_PAIRS = d => {
+    const ROCKET_FIELDS = [
+      ['Manufacturer', r => r.manufacturer],
+      ['Family', r => r.family],
+      ['Variant', r => r.variant],
+      ['Status', r => r.active == null ? null : (r.active ? 'Active' : 'Retired')],
+      ['Reusable', r => yesNo(r.reusable)],
+      ['Length', r => num(r.length, 'm')],
+      ['Diameter', r => num(r.diameter, 'm')],
+      ['Launch mass', r => num(r.launch_mass, 'kg')],
+      ['LEO capacity', r => num(r.leo_capacity, 'kg')],
+      ['GTO capacity', r => num(r.gto_capacity, 'kg')],
+      ['Thrust', r => num(r.thrust, 'kN')],
+      ['Maiden flight', r => r.maiden_flight],
+      ['Launch cost', r => r.launch_cost != null ? `$${num(r.launch_cost)}` : null],
+      ['Alias', r => r.alias],
+      ['Stages', r => r.min_stage != null ? `${r.min_stage}–${r.max_stage}` : null],
+      ['Apogee', r => num(r.apogee, 'km')],
+      ['Range', r => num(r.vehicle_range, 'km')],
+      ...RECORD_FIELDS,
+    ];
+
+    const AGENCY_FIELDS = [
+      ['Abbrev', a => a.abbrev],
+      ['Type', a => a.type],
+      ['Country', a => a.country],
+      ['Administrator', a => a.administrator],
+      ['Founded', a => a.founded],
+      ['Launchers', a => a.launchers],
+      ['Spacecraft', a => a.spacecraft],
+      ...RECORD_FIELDS,
+    ];
+
+    const PAD_FIELDS = [
+      ['Location', p => p.location],
+      ['Coordinates', p => p.latitude && `${p.latitude}, ${p.longitude}`],
+      ['Launches', p => p.launches],
+    ];
+
+    const statRows = d => {
+      const total = d.attempts_location;
       const location = ENTITIES.pads[d.pad_id]?.location;
+      const year = d.attempts_location_year;
       return [
-        ...(location ? [[`Launches from ${location}`, attempts(d, 'location')]] : []),
+        ...(location && total != null
+          ? [[`Launches from ${location}`, `${total}${year != null ? ` (${year} this year)` : ''}`]]
+          : []),
         ['Since last pad launch', fmtDuration(d.pad_turnaround)],
       ];
     };
 
-    function section(title, e, pairs, links) {
+    const entityLinks = e => [['Info', e && e.info_url], ['Wiki', e && e.wiki_url]];
+
+    function entitySection(title, e, fieldDefs, links) {
       if (!e || !e.name) return '';
       const linkHtml = links.filter(([, u]) => u)
         .map(([l, u]) => extLink(l, u)).join(' ');
       return `<h3>${esc(title)}: ${esc(e.name)}</h3>`
         + (e.image ? `<img class="modal-image" src="${esc(e.image)}" alt="">` : '')
-        + `<dl class="modal-details">${dlRows(pairs)}</dl>`
+        + `<dl class="modal-details">${fieldRows(e, fieldDefs)}</dl>`
         + (e.description ? `<p class="entity-desc">${esc(e.description)}</p>` : '')
         + (linkHtml ? `<p class="entity-links">${linkHtml}</p>` : '');
     }
 
-    function agencyPairs(a) {
-      return [
-        ['Abbrev', a.abbrev], ['Type', a.type], ['Country', a.country],
-        ['Administrator', a.administrator], ['Founded', a.founded],
-        ['Launchers', a.launchers], ['Spacecraft', a.spacecraft],
-        ['Launches', a.launches], ['Successful', a.successful], ['Failed', a.failed],
-        ['Pending', a.pending], ['Success streak', a.streak],
-        ['Landings', a.landings_attempted != null
-          ? `${a.landings_successful}/${a.landings_attempted}` : null],
-        ['Failed landings', a.landings_failed], ['Landing streak', a.landing_streak],
-      ];
-    }
-
     function renderEntities(d) {
-      const r = ENTITIES.rockets[d.rocket_id];
-      const p = ENTITIES.providers[d.provider_id];
+      const rocket = ENTITIES.rockets[d.rocket_id];
+      let provider = ENTITIES.providers[d.provider_id];
       const pad = ENTITIES.pads[d.pad_id];
       const agencies = (d.agency_ids || [])
         .map(id => ENTITIES.agencies[id]).filter(Boolean);
 
-      const provider = p && r && p.image === r.image ? {...p, image: null} : p;
-      let html = r ? section('Rocket', r, [
-        ['Manufacturer', r.manufacturer], ['Family', r.family], ['Variant', r.variant],
-        ['Status', r.active == null ? null : (r.active ? 'Active' : 'Retired')],
-        ['Reusable', yesNo(r.reusable)],
-        ['Length', num(r.length, 'm')], ['Diameter', num(r.diameter, 'm')],
-        ['Launch mass', num(r.launch_mass, 'kg')],
-        ['LEO capacity', num(r.leo_capacity, 'kg')], ['GTO capacity', num(r.gto_capacity, 'kg')],
-        ['Thrust', num(r.thrust, 'kN')], ['Maiden flight', r.maiden_flight],
-        ['Launch cost', r.launch_cost != null ? `$${num(r.launch_cost)}` : null],
-        ['Alias', r.alias],
-        ['Stages', r.min_stage != null ? `${r.min_stage}–${r.max_stage}` : null],
-        ['Apogee', num(r.apogee, 'km')], ['Range', num(r.vehicle_range, 'km')],
-        ['Launches', r.launches], ['Successful', r.successful], ['Failed', r.failed],
-        ['Pending', r.pending], ['Success streak', r.streak],
-        ['Landings', r.landings_attempted != null
-          ? `${r.landings_successful}/${r.landings_attempted}` : null],
-        ['Failed landings', r.landings_failed], ['Landing streak', r.landing_streak],
-      ], [['Info', r.info_url], ['Wiki', r.wiki_url]]) : '';
+      // The provider logo is often the same asset as the rocket image.
+      if (provider && rocket && provider.image === rocket.image) {
+        provider = {...provider, image: null};
+      }
 
-      html += section('Provider', provider, agencyPairs(provider || {}),
-        [['Info', provider && provider.info_url], ['Wiki', provider && provider.wiki_url]]);
-
-      html += section('Pad', pad, pad ? [
-        ['Location', pad.location],
-        ['Coordinates', pad.latitude && `${pad.latitude}, ${pad.longitude}`],
-        ['Launches', pad.launches],
-      ] : [], pad ? [['Map', pad.map_url], ['Info', pad.info_url], ['Wiki', pad.wiki_url]] : []);
+      let html = entitySection('Rocket', rocket, ROCKET_FIELDS, entityLinks(rocket))
+        + entitySection('Provider', provider, AGENCY_FIELDS, entityLinks(provider))
+        + entitySection('Pad', pad, PAD_FIELDS,
+          [['Map', pad && pad.map_url], ...entityLinks(pad)]);
 
       if (agencies.length) {
         html += '<h3>Agencies</h3><ul class="entity-list">'
@@ -297,13 +287,12 @@
             `<li>${esc(a.name)}${a.abbrev ? ` (${esc(a.abbrev)})` : ''}</li>`).join('')
           + '</ul>';
       }
-      document.getElementById('mtab-entities').innerHTML =
-        html || '<p class="muted">No details available.</p>';
+      $('mtab-entities').innerHTML = html || '<p class="muted">No details available.</p>';
     }
 
     function renderUpdates(d) {
       const updates = d.updates || [];
-      document.getElementById('mtab-updates').innerHTML = updates.length
+      $('mtab-updates').innerHTML = updates.length
         ? updates.map(u => `<div class="update">
             <div class="update-meta">${u.profile_image ? `<img class="update-avatar" src="${esc(u.profile_image)}" alt="">` : ''}${esc(fmtLocal(u.created_on) || '')}${u.created_by ? ' · ' + esc(u.created_by) : ''}</div>
             <p>${esc(u.comment)}</p>
@@ -312,46 +301,71 @@
         : '<p class="muted">No updates for this launch.</p>';
     }
 
-    function linkList(links) {
-      return '<ul class="link-list">' + links.map(l =>
-        `<li>${extLink(l.label || l.url, l.url)}${l.title ? ` <span class="muted">${esc(l.title)}</span>` : ''}</li>`
-      ).join('') + '</ul>';
-    }
+    const linkList = links => '<ul class="link-list">' + links.map(l =>
+      `<li>${extLink(l.label || l.url, l.url)}${l.title ? ` <span class="muted">${esc(l.title)}</span>` : ''}</li>`
+    ).join('') + '</ul>';
 
     function renderLinks(d) {
       const launch = d.links || [];
       const mission = d.mission_links || [];
-      document.getElementById('mtab-links').innerHTML =
+      $('mtab-links').innerHTML =
         (launch.length ? `<h3>Launch</h3>${linkList(launch)}` : '')
         + (mission.length ? `<h3>Mission</h3>${linkList(mission)}` : '')
         || '<p class="muted">No links for this launch.</p>';
     }
 
+    // Generic tab wiring: buttons carry data-pane pointing at their pane's id.
+    // Returns a reset function that re-activates the first tab.
+    function wireTabs(btnSel, paneSel, onSwitch) {
+      const btns = [...document.querySelectorAll(btnSel)];
+      const panes = [...document.querySelectorAll(paneSel)];
+      const activate = btn => {
+        btns.forEach(b => b.classList.toggle('active', b === btn));
+        panes.forEach(p => p.hidden = p.id !== btn.dataset.pane);
+        if (onSwitch) onSwitch(btn);
+      };
+      btns.forEach(btn => btn.addEventListener('click', () => activate(btn)));
+      return () => activate(btns[0]);
+    }
+
+    const filterInput = $('filter');
+    const filterCount = $('filter-count');
+
+    function applyFilter() {
+      const q = filterInput.value.trim().toLowerCase();
+      document.querySelectorAll('.table-wrap tbody tr').forEach(tr => {
+        tr.hidden = q && !tr.textContent.toLowerCase().includes(q);
+      });
+      filterCount.textContent = q
+        ? `${document.querySelector('.table-wrap:not([hidden])')
+            .querySelectorAll('tbody tr:not([hidden])').length} matches`
+        : '';
+    }
+    filterInput.addEventListener('input', applyFilter);
+
+    const modal = $('modal');
+    const setImg = (img, url) => { img.hidden = !url; if (url) img.src = url; };
+    const resetModalTabs = wireTabs('.modal-tabs .tab', '.modal-pane');
+    wireTabs('#launch-tabs .tab', '.table-wrap', applyFilter);
+
     function openModal(d) {
-      document.getElementById('modal-name').textContent = d.name;
-      const img = document.getElementById('modal-image');
-      img.hidden = !d.image;
-      if (d.image) img.src = d.image;
-      document.getElementById('modal-details').innerHTML =
-        dlRows(FIELDS.map(([l, get]) => [l, get(d)]));
-      document.getElementById('modal-desc').textContent = d.mission_description || '';
-      document.getElementById('modal-live').hidden = !d.webcast_live;
-
-      const info = document.getElementById('modal-infographic');
-      info.hidden = !d.infographic;
-      if (d.infographic) info.src = d.infographic;
-
-      document.getElementById('modal-patches').innerHTML = (d.mission_patches || [])
+      $('modal-name').textContent = d.name;
+      setImg($('modal-image'), d.image);
+      setImg($('modal-infographic'), d.infographic);
+      $('modal-live').hidden = !d.webcast_live;
+      $('modal-details').innerHTML = fieldRows(d, LAUNCH_FIELDS);
+      $('modal-desc').textContent = d.mission_description || '';
+      $('modal-patches').innerHTML = (d.mission_patches || [])
         .map(u => `<img class="patch" src="${esc(u)}" alt="Mission patch">`).join('');
 
-      const statsHtml = dlRows(STAT_PAIRS(d));
-      document.getElementById('modal-stats').innerHTML = statsHtml;
-      document.getElementById('modal-stat-head').hidden = !statsHtml;
+      const statsHtml = dlRows(statRows(d));
+      $('modal-stats').innerHTML = statsHtml;
+      $('modal-stat-head').hidden = !statsHtml;
+
       renderEntities(d);
       renderUpdates(d);
       renderLinks(d);
-      document.querySelectorAll('.modal-tab').forEach((b, i) => b.classList.toggle('active', i === 0));
-      document.querySelectorAll('.modal-pane').forEach((p, i) => p.hidden = i !== 0);
+      resetModalTabs();
       modal.hidden = false;
       document.body.style.overflow = 'hidden';
     }
@@ -361,38 +375,21 @@
       document.body.style.overflow = '';
     }
 
-    document.querySelectorAll('.table-wrap tbody tr').forEach(tr => {
-      tr.addEventListener('click', () => {
-        openModal(LAUNCHES[tr.dataset.set][+tr.dataset.idx]);
-      });
+    document.querySelector('main').addEventListener('click', e => {
+      const tr = e.target.closest('tr[data-set]');
+      if (tr) openModal(LAUNCHES[tr.dataset.set][+tr.dataset.idx]);
     });
-    document.querySelectorAll('.modal-tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.modal-tab').forEach(b => b.classList.toggle('active', b === btn));
-        document.querySelectorAll('.modal-pane').forEach(p => {
-          p.hidden = p.id !== 'mtab-' + btn.dataset.mtab;
-        });
-      });
-    });
-    document.getElementById('modal-close').addEventListener('click', closeModal);
+    $('modal-close').addEventListener('click', closeModal);
     modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-
-    document.querySelectorAll('#launch-tabs .tab').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('#launch-tabs .tab').forEach(b => b.classList.toggle('active', b === btn));
-        document.querySelectorAll('.table-wrap').forEach(w => {
-          w.hidden = w.id !== 'tab-' + btn.dataset.tab;
-        });
-        applyFilter();
-      });
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && !modal.hidden) closeModal();
     });
 
     Chart.defaults.color = '#9ca3af';
     Chart.defaults.borderColor = '#1f2937';
 
     function barChart(id, data, fullNames) {
-      return new Chart(document.getElementById(id), {
+      return new Chart($(id), {
         type: 'bar',
         data: {
           labels: Object.keys(data),
@@ -415,20 +412,12 @@
     }
 
     const charts = {
-      rocket: barChart('byRocket', STATS.by_rocket),
-      manufacturer: barChart('byManufacturer', STATS.by_manufacturer,
-                             STATS.manufacturer_names),
+      'chart-rocket': barChart('byRocket', STATS.by_rocket),
+      'chart-manufacturer': barChart('byManufacturer', STATS.by_manufacturer,
+                                   STATS.manufacturer_names),
     };
-
-    document.querySelectorAll('[data-chart]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('[data-chart]').forEach(b => b.classList.toggle('active', b === btn));
-        document.querySelectorAll('.chart-pane').forEach(p => {
-          p.hidden = p.id !== 'chart-' + btn.dataset.chart;
-        });
-        charts[btn.dataset.chart].resize();
-      });
-    });
+    wireTabs('#chart-tabs .tab', '.chart-pane',
+      btn => charts[btn.dataset.pane].resize());
   </script>
 </body>
 </html>
