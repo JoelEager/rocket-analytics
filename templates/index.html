@@ -52,6 +52,10 @@
       <div class="tabs">
         <button class="tab active" data-tab="upcoming">Upcoming ({{ upcoming | length }})</button>
         <button class="tab" data-tab="past">Past ({{ previous | length }})</button>
+        <div class="filter">
+          <input id="filter" type="search" placeholder="Filter launches..." autocomplete="off">
+          <span id="filter-count"></span>
+        </div>
       </div>
 
       <div class="table-wrap" id="tab-upcoming">
@@ -103,12 +107,31 @@
   </footer>
 
   <script>
+    const filterInput = document.getElementById('filter');
+    const filterCount = document.getElementById('filter-count');
+
+    function applyFilter() {
+      const q = filterInput.value.trim().toLowerCase();
+      document.querySelectorAll('.table-wrap tbody tr').forEach(tr => {
+        tr.hidden = q && !tr.textContent.toLowerCase().includes(q);
+      });
+      if (q) {
+        const shown = document.querySelector('.table-wrap:not([hidden])')
+          .querySelectorAll('tbody tr:not([hidden])').length;
+        filterCount.textContent = `${shown} matches`;
+      } else {
+        filterCount.textContent = '';
+      }
+    }
+    filterInput.addEventListener('input', applyFilter);
+
     document.querySelectorAll('.tab').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.table-wrap').forEach(w => {
           w.hidden = w.id !== 'tab-' + btn.dataset.tab;
         });
+        applyFilter();
       });
     });
 

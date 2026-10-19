@@ -112,7 +112,6 @@ def compute_stats(launches):
     by_year = Counter()
     by_provider = Counter()
     by_status = Counter()
-    by_pad = Counter()
 
     for launch in launches:
         net = launch.get("net") or ""
@@ -122,15 +121,12 @@ def compute_stats(launches):
         by_provider[provider.get("name") or "Unknown"] += 1
         status = launch.get("status") or {}
         by_status[status.get("name") or "Unknown"] += 1
-        pad = launch.get("pad") or {}
-        by_pad[pad.get("name") or "Unknown"] += 1
 
     return {
         "total": len(launches),
         "by_year": dict(sorted(by_year.items())),
         "by_provider": dict(by_provider.most_common(10)),
         "by_status": dict(by_status.most_common()),
-        "top_pads": dict(by_pad.most_common(10)),
     }
 
 
