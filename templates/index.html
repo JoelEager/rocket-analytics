@@ -10,48 +10,62 @@
 <body>
   <header>
     <h1>Rocket Analytics</h1>
-    <p class="subtitle">Orbital launch statistics and upcoming launch schedule</p>
-    <p class="generated">Generated {{ generated_at }}</p>
+    <p class="chart-note">"Observed" rockets are those seen in the launches listed below — their launch counts reflect all-time totals.</p>
+    <p class="generated">
+      Generated <span id="generated" data-ts="{{ generated_at }}"></span> ·
+      <a href="https://github.com/JoelEager/rocket-analytics" target="_blank" rel="noopener">GitHub</a> ·
+      Data from <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener">The Space Devs — Launch Library 2</a>
+    </p>
   </header>
 
   <main>
     <section class="cards">
       <div class="card">
-        <span class="card-value">{{ stats.total }}</span>
-        <span class="card-label">Launches analyzed</span>
+        <span class="card-value">{{ stats.rocket_count }}</span>
+        <span class="card-label">Rocket configs observed</span>
       </div>
       <div class="card">
-        <span class="card-value">{{ upcoming | length }}</span>
-        <span class="card-label">Upcoming launches</span>
+        <span class="card-value">{{ stats.total }}</span>
+        <span class="card-label">Launches by observed rockets</span>
       </div>
       <div class="card">
         <span class="card-value">
-          {%- set successes = stats.by_status.get('Launch Successful', 0) -%}
-          {%- if stats.total -%}{{ (successes / stats.total * 100) | round(1) }}%{%- else -%}—{%- endif -%}
+          {%- if stats.total -%}{{ (stats.successful / stats.total * 100) | round(1) }}%{%- else -%}—{%- endif -%}
         </span>
-        <span class="card-label">Success rate</span>
+        <span class="card-label">Overall success rate</span>
       </div>
       <div class="card">
-        <span class="card-value">{{ stats.by_provider.keys() | first or "—" }}</span>
-        <span class="card-label">Top provider</span>
+        <span class="card-value">{{ orbital_total or "—" }}</span>
+        <span class="card-label">All-time orbital launches</span>
+      </div>
+      <div class="card">
+        <span class="card-value">{{ orbital_year or "—" }}</span>
+        <span class="card-label">Orbital launches in {{ orbital_year_label }}</span>
       </div>
     </section>
 
     <section class="charts">
       <div class="chart-box">
-        <h2>Launches per year</h2>
-        <canvas id="byYear"></canvas>
-      </div>
-      <div class="chart-box">
-        <h2>Launches by provider</h2>
-        <canvas id="byProvider"></canvas>
+        <h2>All-time launches (observed rockets)</h2>
+        <div class="tabs">
+          <button class="tab active" data-chart="rocket">By rocket</button>
+          <button class="tab" data-chart="manufacturer">By manufacturer</button>
+        </div>
+        <div class="chart-pane" id="chart-rocket">
+          <canvas id="byRocket"></canvas>
+        </div>
+        <div class="chart-pane" id="chart-manufacturer" hidden>
+          <canvas id="byManufacturer"></canvas>
+        </div>
       </div>
     </section>
 
     <section>
-      <div class="tabs">
-        <button class="tab active" data-tab="upcoming">Upcoming ({{ upcoming | length }})</button>
-        <button class="tab" data-tab="past">Past ({{ previous | length }})</button>
+      <h2>Launch details</h2>
+      <div class="tabs" id="launch-tabs">
+        <button class="tab active" data-tab="upcoming">Upcoming</button>
+        <button class="tab" data-tab="past">Previous</button>
+        <span class="tab-hint">Click a row for details</span>
         <div class="filter">
           <input id="filter" type="search" placeholder="Filter launches..." autocomplete="off">
           <span id="filter-count"></span>
@@ -65,7 +79,7 @@
           </thead>
           <tbody>
             {% for launch in upcoming %}
-            <tr>
+            <tr data-set="upcoming" data-idx="{{ loop.index0 }}">
               <td>{{ launch.net | replace('T', ' ') | truncate(16, true, '') }}</td>
               <td>{{ launch.name }}</td>
               <td>{{ (launch.launch_service_provider or {}).name | default('—') }}</td>
@@ -74,6 +88,7 @@
             {% endfor %}
           </tbody>
         </table>
+        <p class="table-note">Showing the next {{ upcoming | length }} launches</p>
       </div>
 
       <div class="table-wrap" id="tab-past" hidden>
@@ -84,7 +99,7 @@
           <tbody>
             {% for launch in previous %}
             {% set status = (launch.status or {}).name | default('Unknown') %}
-            <tr>
+            <tr data-set="past" data-idx="{{ loop.index0 }}">
               <td>{{ launch.net | replace('T', ' ') | truncate(16, true, '') }}</td>
               <td>{{ launch.name }}</td>
               <td>{{ (launch.launch_service_provider or {}).name | default('—') }}</td>
@@ -98,15 +113,47 @@
             {% endfor %}
           </tbody>
         </table>
+        <p class="table-note">Showing the last {{ previous | length }} launches</p>
       </div>
     </section>
   </main>
 
-  <footer>
-    <p>Data from <a href="https://thespacedevs.com/llapi">The Space Devs — Launch Library 2</a></p>
-  </footer>
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close" aria-label="Close">&times;</button>
+      <h2 id="modal-name"></h2>
+      <div class="modal-tabs">
+        <button class="modal-tab active" data-mtab="overview">Launch</button>
+        <button class="modal-tab" data-mtab="entities">Hardware & Orgs</button>
+        <button class="modal-tab" data-mtab="updates">Updates</button>
+        <button class="modal-tab" data-mtab="links">Links</button>
+      </div>
+      <div class="modal-pane" id="mtab-overview">
+        <img id="modal-image" class="modal-image" hidden alt="">
+        <img id="modal-infographic" class="modal-image" hidden alt="">
+        <p id="modal-live" class="live-badge" hidden>Webcast live</p>
+        <dl id="modal-details" class="modal-details"></dl>
+        <p id="modal-desc"></p>
+        <div id="modal-patches" class="patch-row"></div>
+        <h3 id="modal-stat-head" hidden>Statistics</h3>
+        <dl id="modal-stats" class="modal-details"></dl>
+      </div>
+      <div class="modal-pane" id="mtab-entities" hidden></div>
+      <div class="modal-pane" id="mtab-updates" hidden></div>
+      <div class="modal-pane" id="mtab-links" hidden></div>
+    </div>
+  </div>
+
+  <script type="application/json" id="data-upcoming">{{ upcoming_detail | tojson }}</script>
+  <script type="application/json" id="data-previous">{{ previous_detail | tojson }}</script>
+  <script type="application/json" id="data-entities">{{ entities | tojson }}</script>
+  <script type="application/json" id="data-stats">{{ stats | tojson }}</script>
 
   <script>
+    document.getElementById('generated').textContent =
+      new Date(document.getElementById('generated').dataset.ts)
+        .toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'});
+
     const filterInput = document.getElementById('filter');
     const filterCount = document.getElementById('filter-count');
 
@@ -125,9 +172,215 @@
     }
     filterInput.addEventListener('input', applyFilter);
 
-    document.querySelectorAll('.tab').forEach(btn => {
+    const readJson = id => JSON.parse(document.getElementById(id).textContent);
+    const LAUNCHES = {upcoming: readJson('data-upcoming'), past: readJson('data-previous')};
+    const ENTITIES = readJson('data-entities');
+    const STATS = readJson('data-stats');
+
+    const modal = document.getElementById('modal');
+    const fmt = s => s ? s.replace('T', ' ').slice(0, 16) + ' UTC' : null;
+    const fmtLocal = s => s ? new Date(s)
+      .toLocaleString(undefined, {dateStyle: 'medium', timeStyle: 'short'}) : null;
+    const esc = s => String(s).replace(/[&<>"']/g,
+      c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const num = (v, unit) => v != null ? Number(v).toLocaleString() + (unit ? ' ' + unit : '') : null;
+    const yesNo = v => v == null ? null : (v ? 'Yes' : 'No');
+    const extLink = (label, url) => url
+      ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : '';
+
+    function dlRows(pairs) {
+      return pairs
+        .filter(([, v]) => v != null && v !== '')
+        .map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`)
+        .join('');
+    }
+
+    const FIELDS = [
+      ['Date', d => fmt(d.net)],
+      ['Status', d => d.status],
+      ['Launch window', d => d.window_start && `${fmt(d.window_start)} – ${fmt(d.window_end)}`],
+      ['Mission', d => d.mission_name],
+      ['Type', d => d.mission_type],
+      ['Orbit', d => d.orbit],
+      ['Program', d => (d.program || []).filter(Boolean).join(' · ')],
+      ['Success probability', d => d.probability != null && d.probability >= 0 ? `${d.probability}%` : null],
+      ['Hold reason', d => d.holdreason],
+      ['Failure reason', d => d.failreason],
+      ['Weather concerns', d => d.weather_concerns],
+    ];
+
+    const fmtDuration = s => {
+      const m = s && s.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:[\d.]+S)?)?$/);
+      if (!m) return s;
+      return [[m[1], 'd'], [m[2], 'h'], [m[3], 'm']]
+        .filter(([v]) => v).map(([v, u]) => v + u).join(' ') || null;
+    };
+
+    const attempts = (d, key) => {
+      const total = d['attempts_' + key];
+      if (total == null) return null;
+      const yr = d['attempts_' + key + '_year'];
+      return `${total}${yr != null ? ` (${yr} this year)` : ''}`;
+    };
+
+    const STAT_PAIRS = d => {
+      const location = ENTITIES.pads[d.pad_id]?.location;
+      return [
+        ...(location ? [[`Launches from ${location}`, attempts(d, 'location')]] : []),
+        ['Since last pad launch', fmtDuration(d.pad_turnaround)],
+      ];
+    };
+
+    function section(title, e, pairs, links) {
+      if (!e || !e.name) return '';
+      const linkHtml = links.filter(([, u]) => u)
+        .map(([l, u]) => extLink(l, u)).join(' ');
+      return `<h3>${esc(title)}: ${esc(e.name)}</h3>`
+        + (e.image ? `<img class="modal-image" src="${esc(e.image)}" alt="">` : '')
+        + `<dl class="modal-details">${dlRows(pairs)}</dl>`
+        + (e.description ? `<p class="entity-desc">${esc(e.description)}</p>` : '')
+        + (linkHtml ? `<p class="entity-links">${linkHtml}</p>` : '');
+    }
+
+    function agencyPairs(a) {
+      return [
+        ['Abbrev', a.abbrev], ['Type', a.type], ['Country', a.country],
+        ['Administrator', a.administrator], ['Founded', a.founded],
+        ['Launchers', a.launchers], ['Spacecraft', a.spacecraft],
+        ['Launches', a.launches], ['Successful', a.successful], ['Failed', a.failed],
+        ['Pending', a.pending], ['Success streak', a.streak],
+        ['Landings', a.landings_attempted != null
+          ? `${a.landings_successful}/${a.landings_attempted}` : null],
+        ['Failed landings', a.landings_failed], ['Landing streak', a.landing_streak],
+      ];
+    }
+
+    function renderEntities(d) {
+      const r = ENTITIES.rockets[d.rocket_id];
+      const p = ENTITIES.providers[d.provider_id];
+      const pad = ENTITIES.pads[d.pad_id];
+      const agencies = (d.agency_ids || [])
+        .map(id => ENTITIES.agencies[id]).filter(Boolean);
+
+      const provider = p && r && p.image === r.image ? {...p, image: null} : p;
+      let html = r ? section('Rocket', r, [
+        ['Manufacturer', r.manufacturer], ['Family', r.family], ['Variant', r.variant],
+        ['Status', r.active == null ? null : (r.active ? 'Active' : 'Retired')],
+        ['Reusable', yesNo(r.reusable)],
+        ['Length', num(r.length, 'm')], ['Diameter', num(r.diameter, 'm')],
+        ['Launch mass', num(r.launch_mass, 'kg')],
+        ['LEO capacity', num(r.leo_capacity, 'kg')], ['GTO capacity', num(r.gto_capacity, 'kg')],
+        ['Thrust', num(r.thrust, 'kN')], ['Maiden flight', r.maiden_flight],
+        ['Launch cost', r.launch_cost != null ? `$${num(r.launch_cost)}` : null],
+        ['Alias', r.alias],
+        ['Stages', r.min_stage != null ? `${r.min_stage}–${r.max_stage}` : null],
+        ['Apogee', num(r.apogee, 'km')], ['Range', num(r.vehicle_range, 'km')],
+        ['Launches', r.launches], ['Successful', r.successful], ['Failed', r.failed],
+        ['Pending', r.pending], ['Success streak', r.streak],
+        ['Landings', r.landings_attempted != null
+          ? `${r.landings_successful}/${r.landings_attempted}` : null],
+        ['Failed landings', r.landings_failed], ['Landing streak', r.landing_streak],
+      ], [['Info', r.info_url], ['Wiki', r.wiki_url]]) : '';
+
+      html += section('Provider', provider, agencyPairs(provider || {}),
+        [['Info', provider && provider.info_url], ['Wiki', provider && provider.wiki_url]]);
+
+      html += section('Pad', pad, pad ? [
+        ['Location', pad.location],
+        ['Coordinates', pad.latitude && `${pad.latitude}, ${pad.longitude}`],
+        ['Launches', pad.launches],
+      ] : [], pad ? [['Map', pad.map_url], ['Info', pad.info_url], ['Wiki', pad.wiki_url]] : []);
+
+      if (agencies.length) {
+        html += '<h3>Agencies</h3><ul class="entity-list">'
+          + agencies.map(a =>
+            `<li>${esc(a.name)}${a.abbrev ? ` (${esc(a.abbrev)})` : ''}</li>`).join('')
+          + '</ul>';
+      }
+      document.getElementById('mtab-entities').innerHTML =
+        html || '<p class="muted">No details available.</p>';
+    }
+
+    function renderUpdates(d) {
+      const updates = d.updates || [];
+      document.getElementById('mtab-updates').innerHTML = updates.length
+        ? updates.map(u => `<div class="update">
+            <div class="update-meta">${u.profile_image ? `<img class="update-avatar" src="${esc(u.profile_image)}" alt="">` : ''}${esc(fmtLocal(u.created_on) || '')}${u.created_by ? ' · ' + esc(u.created_by) : ''}</div>
+            <p>${esc(u.comment)}</p>
+            ${u.info_url ? extLink('Source', u.info_url) : ''}
+          </div>`).join('')
+        : '<p class="muted">No updates for this launch.</p>';
+    }
+
+    function linkList(links) {
+      return '<ul class="link-list">' + links.map(l =>
+        `<li>${extLink(l.label || l.url, l.url)}${l.title ? ` <span class="muted">${esc(l.title)}</span>` : ''}</li>`
+      ).join('') + '</ul>';
+    }
+
+    function renderLinks(d) {
+      const launch = d.links || [];
+      const mission = d.mission_links || [];
+      document.getElementById('mtab-links').innerHTML =
+        (launch.length ? `<h3>Launch</h3>${linkList(launch)}` : '')
+        + (mission.length ? `<h3>Mission</h3>${linkList(mission)}` : '')
+        || '<p class="muted">No links for this launch.</p>';
+    }
+
+    function openModal(d) {
+      document.getElementById('modal-name').textContent = d.name;
+      const img = document.getElementById('modal-image');
+      img.hidden = !d.image;
+      if (d.image) img.src = d.image;
+      document.getElementById('modal-details').innerHTML =
+        dlRows(FIELDS.map(([l, get]) => [l, get(d)]));
+      document.getElementById('modal-desc').textContent = d.mission_description || '';
+      document.getElementById('modal-live').hidden = !d.webcast_live;
+
+      const info = document.getElementById('modal-infographic');
+      info.hidden = !d.infographic;
+      if (d.infographic) info.src = d.infographic;
+
+      document.getElementById('modal-patches').innerHTML = (d.mission_patches || [])
+        .map(u => `<img class="patch" src="${esc(u)}" alt="Mission patch">`).join('');
+
+      const statsHtml = dlRows(STAT_PAIRS(d));
+      document.getElementById('modal-stats').innerHTML = statsHtml;
+      document.getElementById('modal-stat-head').hidden = !statsHtml;
+      renderEntities(d);
+      renderUpdates(d);
+      renderLinks(d);
+      document.querySelectorAll('.modal-tab').forEach((b, i) => b.classList.toggle('active', i === 0));
+      document.querySelectorAll('.modal-pane').forEach((p, i) => p.hidden = i !== 0);
+      modal.hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.table-wrap tbody tr').forEach(tr => {
+      tr.addEventListener('click', () => {
+        openModal(LAUNCHES[tr.dataset.set][+tr.dataset.idx]);
+      });
+    });
+    document.querySelectorAll('.modal-tab').forEach(btn => {
       btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.modal-tab').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.modal-pane').forEach(p => {
+          p.hidden = p.id !== 'mtab-' + btn.dataset.mtab;
+        });
+      });
+    });
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+    document.querySelectorAll('#launch-tabs .tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#launch-tabs .tab').forEach(b => b.classList.toggle('active', b === btn));
         document.querySelectorAll('.table-wrap').forEach(w => {
           w.hidden = w.id !== 'tab-' + btn.dataset.tab;
         });
@@ -135,33 +388,46 @@
       });
     });
 
-    const palette = ['#6ea8fe', '#a78bfa', '#4ade80', '#facc15', '#fb923c',
-                     '#f87171', '#38bdf8', '#e879f9', '#34d399', '#f472b6'];
     Chart.defaults.color = '#9ca3af';
     Chart.defaults.borderColor = '#1f2937';
 
-    new Chart(document.getElementById('byYear'), {
-      type: 'bar',
-      data: {
-        labels: {{ stats.by_year.keys() | list | tojson }},
-        datasets: [{
-          label: 'Launches',
-          data: {{ stats.by_year.values() | list | tojson }},
-          backgroundColor: '#6ea8fe',
-        }],
-      },
-      options: {plugins: {legend: {display: false}}},
-    });
+    function barChart(id, data, fullNames) {
+      return new Chart(document.getElementById(id), {
+        type: 'bar',
+        data: {
+          labels: Object.keys(data),
+          datasets: [{
+            label: 'Launches',
+            data: Object.values(data),
+            backgroundColor: '#6ea8fe',
+          }],
+        },
+        options: {
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {display: false},
+            tooltip: fullNames ? {callbacks: {
+              title: items => fullNames[items[0].label] || items[0].label,
+            }} : {},
+          },
+        },
+      });
+    }
 
-    new Chart(document.getElementById('byProvider'), {
-      type: 'doughnut',
-      data: {
-        labels: {{ stats.by_provider.keys() | list | tojson }},
-        datasets: [{
-          data: {{ stats.by_provider.values() | list | tojson }},
-          backgroundColor: palette,
-        }],
-      },
+    const charts = {
+      rocket: barChart('byRocket', STATS.by_rocket),
+      manufacturer: barChart('byManufacturer', STATS.by_manufacturer,
+                             STATS.manufacturer_names),
+    };
+
+    document.querySelectorAll('[data-chart]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('[data-chart]').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.chart-pane').forEach(p => {
+          p.hidden = p.id !== 'chart-' + btn.dataset.chart;
+        });
+        charts[btn.dataset.chart].resize();
+      });
     });
   </script>
 </body>

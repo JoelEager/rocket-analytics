@@ -108,26 +108,189 @@ def save_cache(upcoming, previous):
         print("Warning: Could not save cache file.")
 
 
-def compute_stats(launches):
-    """Compute summary analytics from a list of launch objects."""
-    by_year = Counter()
-    by_provider = Counter()
-    by_status = Counter()
-
-    for launch in launches:
-        net = launch.get("net") or ""
-        if len(net) >= 4:
-            by_year[net[:4]] += 1
-        provider = launch.get("launch_service_provider") or {}
-        by_provider[provider.get("name") or "Unknown"] += 1
-        status = launch.get("status") or {}
-        by_status[status.get("name") or "Unknown"] += 1
+def compute_stats(rockets):
+    """Compute summary analytics from the deduplicated rocket set."""
+    by_rocket = {r["name"]: r["launches"] for r in rockets.values()
+                 if r.get("launches") and r.get("name")}
+    by_manufacturer = Counter()
+    manufacturer_names = {}
+    for r in rockets.values():
+        if r.get("manufacturer") and r.get("launches"):
+            label = r.get("manufacturer_abbrev") or r["manufacturer"]
+            by_manufacturer[label] += r["launches"]
+            manufacturer_names[label] = r["manufacturer"]
 
     return {
-        "total": len(launches),
-        "by_year": dict(sorted(by_year.items())),
-        "by_provider": dict(by_provider.most_common(10)),
-        "by_status": dict(by_status.most_common()),
+        "rocket_count": len(rockets),
+        "total": sum(by_rocket.values()),
+        "successful": sum(r.get("successful") or 0 for r in rockets.values()),
+        "by_rocket": dict(sorted(by_rocket.items(),
+                                 key=lambda kv: kv[1], reverse=True)[:10]),
+        "by_manufacturer": dict(by_manufacturer.most_common(10)),
+        "manufacturer_names": manufacturer_names,
+    }
+
+
+def pick(value, key):
+    """Get `key` from a dict, or return a plain value unchanged."""
+    return value.get(key) if isinstance(value, dict) else value
+
+
+def agency_detail(agency):
+    """Curated fields for a provider or mission agency."""
+    return {
+        "name": agency.get("name"),
+        "abbrev": agency.get("abbrev"),
+        "type": pick(agency.get("type"), "name"),
+        "country": agency.get("country_code"),
+        "description": agency.get("description"),
+        "administrator": agency.get("administrator"),
+        "founded": agency.get("founding_year"),
+        "launchers": agency.get("launchers"),
+        "spacecraft": agency.get("spacecraft"),
+        "launches": agency.get("total_launch_count"),
+        "successful": agency.get("successful_launches"),
+        "failed": agency.get("failed_launches"),
+        "pending": agency.get("pending_launches"),
+        "streak": agency.get("consecutive_successful_launches"),
+        "landings_attempted": agency.get("attempted_landings"),
+        "landings_successful": agency.get("successful_landings"),
+        "landings_failed": agency.get("failed_landings"),
+        "landing_streak": agency.get("consecutive_successful_landings"),
+        "image": pick(agency.get("image_url") or agency.get("image"), "image_url"),
+        "info_url": agency.get("info_url"),
+        "wiki_url": agency.get("wiki_url"),
+    }
+
+
+def rocket_detail(config):
+    """Curated fields for a rocket configuration."""
+    manufacturer = config.get("manufacturer") or {}
+    return {
+        "name": config.get("full_name") or config.get("name"),
+        "family": config.get("family"),
+        "variant": config.get("variant"),
+        "manufacturer": manufacturer.get("name"),
+        "manufacturer_abbrev": manufacturer.get("abbrev"),
+        "active": config.get("active"),
+        "reusable": config.get("reusable"),
+        "description": config.get("description"),
+        "length": config.get("length"),
+        "diameter": config.get("diameter"),
+        "launch_mass": config.get("launch_mass"),
+        "leo_capacity": config.get("leo_capacity"),
+        "gto_capacity": config.get("gto_capacity"),
+        "thrust": config.get("to_thrust"),
+        "maiden_flight": config.get("maiden_flight"),
+        "launch_cost": config.get("launch_cost"),
+        "alias": config.get("alias"),
+        "min_stage": config.get("min_stage"),
+        "max_stage": config.get("max_stage"),
+        "apogee": config.get("apogee"),
+        "vehicle_range": config.get("vehicle_range"),
+        "launches": config.get("total_launch_count"),
+        "successful": config.get("successful_launches"),
+        "failed": config.get("failed_launches"),
+        "pending": config.get("pending_launches"),
+        "streak": config.get("consecutive_successful_launches"),
+        "landings_attempted": config.get("attempted_landings"),
+        "landings_successful": config.get("successful_landings"),
+        "landings_failed": config.get("failed_landings"),
+        "landing_streak": config.get("consecutive_successful_landings"),
+        "image": config.get("image_url"),
+        "info_url": config.get("info_url"),
+        "wiki_url": config.get("wiki_url"),
+    }
+
+
+def pad_detail(pad):
+    """Curated fields for a launch pad."""
+    location = pad.get("location") or {}
+    return {
+        "name": pad.get("name"),
+        "location": location.get("name"),
+        "description": pad.get("description"),
+        "latitude": pad.get("latitude"),
+        "longitude": pad.get("longitude"),
+        "map_url": pad.get("map_url"),
+        "info_url": pad.get("info_url"),
+        "wiki_url": pad.get("wiki_url"),
+        "launches": pad.get("total_launch_count"),
+    }
+
+
+def collect_entities(launches):
+    """Deduplicate entity objects observed across launches, keyed by id."""
+    providers, rockets, agencies, pads = {}, {}, {}, {}
+    for launch in launches:
+        provider = launch.get("launch_service_provider") or {}
+        if provider.get("id") is not None:
+            providers.setdefault(provider["id"], agency_detail(provider))
+        rocket = (launch.get("rocket") or {}).get("configuration") or {}
+        if rocket.get("id") is not None:
+            rockets.setdefault(rocket["id"], rocket_detail(rocket))
+        for agency in (launch.get("mission") or {}).get("agencies") or []:
+            if agency.get("id") is not None:
+                agencies.setdefault(agency["id"], agency_detail(agency))
+        pad = launch.get("pad") or {}
+        if pad.get("id") is not None:
+            pads.setdefault(pad["id"], pad_detail(pad))
+    return {"providers": providers, "rockets": rockets,
+            "agencies": agencies, "pads": pads}
+
+
+def launch_detail(launch):
+    """Pick the fields worth showing in the details modal."""
+    mission = launch.get("mission") or {}
+    image = launch.get("image") or {}
+    return {
+        "name": launch.get("name"),
+        "net": launch.get("net"),
+        "status": (launch.get("status") or {}).get("name"),
+        "window_start": launch.get("window_start"),
+        "window_end": launch.get("window_end"),
+        "probability": launch.get("probability"),
+        "mission_name": mission.get("name"),
+        "mission_type": mission.get("type"),
+        "orbit": (mission.get("orbit") or {}).get("abbrev"),
+        "mission_description": mission.get("description"),
+        "image": pick(image, "image_url"),
+        "infographic": pick(launch.get("infographic"), "image_url"),
+        "mission_patches": [
+            pick(p, "image_url") for p in launch.get("mission_patches") or []
+            if pick(p, "image_url")
+        ],
+        "webcast_live": launch.get("webcast_live"),
+        "failreason": launch.get("failreason"),
+        "holdreason": launch.get("holdreason"),
+        "weather_concerns": launch.get("weather_concerns"),
+        "program": [pick(p, "name") for p in launch.get("program") or []],
+        "attempts_location": launch.get("location_launch_attempt_count"),
+        "attempts_location_year": launch.get("location_launch_attempt_count_year"),
+        "pad_turnaround": launch.get("pad_turnaround"),
+        "provider_id": (launch.get("launch_service_provider") or {}).get("id"),
+        "rocket_id": ((launch.get("rocket") or {}).get("configuration") or {}).get("id"),
+        "pad_id": (launch.get("pad") or {}).get("id"),
+        "agency_ids": [a.get("id") for a in mission.get("agencies") or []
+                       if a.get("id") is not None],
+        "updates": [
+            {"comment": u.get("comment"), "info_url": u.get("info_url"),
+             "created_on": u.get("created_on"), "created_by": u.get("created_by"),
+             "profile_image": u.get("profile_image")}
+            for u in launch.get("updates") or []
+        ],
+        "links": [
+            {"url": pick(u, "url"), "label": pick(u.get("type"), "name"),
+             "title": u.get("title") or u.get("source")}
+            for u in (launch.get("infoURLs") or []) + (launch.get("vidURLs") or [])
+            if pick(u, "url")
+        ],
+        "mission_links": [
+            {"url": pick(u, "url"), "label": pick(u.get("type"), "name"),
+             "title": u.get("title") or u.get("source")}
+            for u in (mission.get("info_urls") or []) + (mission.get("vid_urls") or [])
+            if pick(u, "url")
+        ],
     }
 
 
@@ -137,6 +300,8 @@ def build_site(upcoming, previous):
         loader=FileSystemLoader(TEMPLATES_DIR),
         autoescape=select_autoescape(("html",)),
     )
+    # Preserve dict order (sorted by count) instead of tojson's alphabetical keys.
+    env.policies["json.dumps_kwargs"]["sort_keys"] = False
 
     # Remove the site directory if it exists
     try:
@@ -153,13 +318,21 @@ def build_site(upcoming, previous):
     # Tell GitHub Pages not to run the site through Jekyll.
     (SITE_DIR / ".nojekyll").touch()
 
+    latest = previous[0] if previous else {}
+
     # Render the HTML template
     template = env.get_template("index.html")
     html = template.render(
         upcoming=upcoming,
         previous=previous,
-        stats=compute_stats(previous),
-        generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+        orbital_total=latest.get("orbital_launch_attempt_count"),
+        orbital_year=latest.get("orbital_launch_attempt_count_year"),
+        orbital_year_label=(latest.get("net") or "")[:4],
+        upcoming_detail=[launch_detail(launch) for launch in upcoming],
+        previous_detail=[launch_detail(launch) for launch in previous],
+        entities=(entities := collect_entities(upcoming + previous)),
+        stats=compute_stats(entities["rockets"]),
+        generated_at=datetime.now(timezone.utc).isoformat(),
     )
     (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
     print(f"Site built in {SITE_DIR}/")
