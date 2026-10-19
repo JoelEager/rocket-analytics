@@ -272,7 +272,10 @@ def compute_stats(rockets, previous):
             by_manufacturer[label] += r["launches"]
             manufacturer_names[label] = r["manufacturer"]
 
-    year = (previous[0].get("net") or "")[:4] if previous else ""
+    # Anchor the year labels to the latest orbital launch so a stray
+    # suborbital flight at a year boundary can't shift the charts.
+    year = next(((l.get("net") or "")[:4] for l in previous
+                 if l.get("orbital_launch_attempt_count") is not None), "")
     prev_year = str(int(year) - 1) if year else ""
     per_year = defaultdict(lambda: [Counter(), Counter()])
     for launch in previous:
@@ -332,7 +335,10 @@ def build_site(upcoming, previous, data_updated):
     (SITE_DIR / ".nojekyll").touch()
 
     entities = collect_entities(upcoming + previous)
-    latest = previous[0] if previous else {}
+    # Suborbital launches have no orbital attempt counts; use the latest
+    # orbital launch for the orbital stat cards.
+    latest = next((l for l in previous
+                   if l.get("orbital_launch_attempt_count") is not None), {})
 
     html = env.get_template("index.html").render(
         upcoming=upcoming,
