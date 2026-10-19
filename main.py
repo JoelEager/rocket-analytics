@@ -61,7 +61,8 @@ def fetch_launches(endpoint, pages):
             "limit": 100,
             "offset": i * 100,
             "ordering": ordering,
-            "mode": "detailed"
+            "mode": "detailed",
+            **({"hide_recent_previous": "true"} if endpoint == "upcoming" else {})
         })
         print(f"Got page {i + 1}")
         data = response.json()
