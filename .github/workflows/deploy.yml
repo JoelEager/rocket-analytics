@@ -14,28 +14,31 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: false
+  # Pushes supersede any run in progress; scheduled runs queue instead.
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
+      - uses: actions/cache@v4
+        with:
+          path: launch_cache.json
+          key: launch-cache-${{ github.run_id }}
+          restore-keys: launch-cache-
       - run: pip install -r requirements.txt
-      - run: python main.py
+      # Use max-cache-age to reuse cache if it's less than 5 hours old
+      - run: python main.py --max-cache-age 5
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site/
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - id: deployment
         uses: actions/deploy-pages@v5

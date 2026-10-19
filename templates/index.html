@@ -41,11 +41,6 @@
     <h1>Rocket Analytics</h1>
     <p class="header-note">"Observed" rockets are those seen in the launches listed below — their launch counts reflect all-time totals.</p>
     <p class="header-note">All dates are shown in your local timezone.</p>
-    <p class="generated">
-      Generated <span id="generated" data-ts="{{ generated_at }}"></span> ·
-      <a href="https://github.com/JoelEager/rocket-analytics" target="_blank" rel="noopener">GitHub</a> ·
-      Data from <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener">The Space Devs — Launch Library 2</a>
-    </p>
   </header>
 
   <main>
@@ -105,6 +100,11 @@
       {{ launch_table('upcoming', upcoming, 'Showing the next ' ~ upcoming | length ~ ' launches') }}
       {{ launch_table('past', previous, 'Showing the last ' ~ previous | length ~ ' launches', with_status=true, hidden=true) }}
     </section>
+    <div class="footer-note">
+      Data from <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener">Launch Library</a> ·
+      Updated <span id="data-updated" data-ts="{{ data_updated or '' }}"></span> ·
+      <a href="https://github.com/JoelEager/rocket-analytics" target="_blank" rel="noopener">GitHub repository</a>
+    </div>
   </main>
 
   <div id="modal" class="modal" hidden>
@@ -156,7 +156,7 @@
     const extLink = (label, url) => url
       ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : '';
 
-    $('generated').textContent = fmtLocal($('generated').dataset.ts);
+    $('data-updated').textContent = fmtLocal($('data-updated').dataset.ts);
     document.querySelectorAll('td[data-net]').forEach(td => {
       const d = new Date(td.dataset.net);
       if (isNaN(d)) return;

@@ -4,7 +4,7 @@ import argparse
 import json
 import shutil
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -54,8 +54,9 @@ def fetch_launches(endpoint, pages):
     return results
 
 
-def load_cache():
-    """Return cached (upcoming, previous, last_updated), or None."""
+def load_cache(max_age=None):
+    """Return cached (upcoming, previous, last_updated), or None.
+    If `max_age` (a timedelta) is given, reject caches older than that."""
     try:
         data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -66,23 +67,35 @@ def load_cache():
     if not upcoming or not previous:
         print("Warning: Cache file is missing data.")
         return None
-    return upcoming, previous, data.get("last_updated")
+
+    last_updated = data.get("last_updated")
+    if max_age is not None:
+        try:
+            age = datetime.now(timezone.utc) - datetime.fromisoformat(last_updated)
+        except (TypeError, ValueError):
+            age = None
+        if age is None or age > max_age:
+            print(f"Cache is stale ({last_updated}); refreshing.")
+            return None
+    return upcoming, previous, last_updated
 
 
 def save_cache(upcoming, previous):
-    """Save the fetched launches to the cache file."""
+    """Save the fetched launches to the cache file; return last_updated."""
+    last_updated = datetime.now(timezone.utc).isoformat()
     try:
         CACHE_FILE.write_text(
             json.dumps({
                 "upcoming": upcoming,
                 "previous": previous,
-                "last_updated": datetime.now(timezone.utc).isoformat(),
+                "last_updated": last_updated,
             }, indent=2),
             encoding="utf-8",
         )
         print("Cache saved successfully.")
     except OSError:
         print("Warning: Could not save cache file.")
+    return last_updated
 
 
 def pick(value, key):
@@ -268,7 +281,7 @@ def compute_stats(rockets):
     }
 
 
-def build_site(upcoming, previous):
+def build_site(upcoming, previous, data_updated):
     """Render templates and copy static assets into the site directory."""
     env = Environment(
         loader=FileSystemLoader(TEMPLATES_DIR),
@@ -303,7 +316,7 @@ def build_site(upcoming, previous):
         previous_detail=[launch_detail(launch) for launch in previous],
         entities=entities,
         stats=compute_stats(entities["rockets"]),
-        generated_at=datetime.now(timezone.utc).isoformat(),
+        data_updated=data_updated,
     )
     (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
     print(f"Site built in {SITE_DIR}/")
@@ -314,21 +327,34 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--refresh", action="store_true",
                         help="load fresh data from the API")
+    parser.add_argument("--max-cache-age", type=float, metavar="HOURS",
+                        help="refetch if the cache is older than this many "
+                             "hours (default: use the cache regardless of age)")
     args = parser.parse_args()
 
-    cached = None if args.refresh else load_cache()
+    max_age = (timedelta(hours=args.max_cache_age)
+               if args.max_cache_age is not None else None)
+    cached = None if args.refresh else load_cache(max_age)
     if cached:
         upcoming, previous, last_updated = cached
         print(f"Using cached data: {len(upcoming)} upcoming, "
               f"{len(previous)} previous launches from {last_updated}")
     else:
-        print(f"Fetching upcoming launches ({UPCOMING_LAUNCH_PAGES} pages)...")
-        upcoming = fetch_launches("upcoming", UPCOMING_LAUNCH_PAGES)
-        print(f"Fetching previous launches ({PAST_LAUNCH_PAGES} pages)...")
-        previous = fetch_launches("previous", PAST_LAUNCH_PAGES)
-        save_cache(upcoming, previous)
+        try:
+            print(f"Fetching upcoming launches ({UPCOMING_LAUNCH_PAGES} pages)...")
+            upcoming = fetch_launches("upcoming", UPCOMING_LAUNCH_PAGES)
+            print(f"Fetching previous launches ({PAST_LAUNCH_PAGES} pages)...")
+            previous = fetch_launches("previous", PAST_LAUNCH_PAGES)
+        except Exception as e:
+            stale = load_cache()
+            if not stale:
+                raise
+            upcoming, previous, last_updated = stale
+            print(f"Fetch failed ({e}); using stale cache from {last_updated}")
+        else:
+            last_updated = save_cache(upcoming, previous)
 
-    build_site(upcoming, previous)
+    build_site(upcoming, previous, last_updated)
 
 
 if __name__ == "__main__":
