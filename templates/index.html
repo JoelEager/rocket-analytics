@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rocket Analytics</title>
+  <link rel="stylesheet" href="static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+</head>
+<body>
+  <header>
+    <h1>Rocket Analytics</h1>
+    <p class="subtitle">Orbital launch statistics and upcoming launch schedule</p>
+    <p class="generated">Generated {{ generated_at }}</p>
+  </header>
+
+  <main>
+    <section class="cards">
+      <div class="card">
+        <span class="card-value">{{ stats.total }}</span>
+        <span class="card-label">Launches analyzed</span>
+      </div>
+      <div class="card">
+        <span class="card-value">{{ upcoming | length }}</span>
+        <span class="card-label">Upcoming launches</span>
+      </div>
+      <div class="card">
+        <span class="card-value">
+          {%- set successes = stats.by_status.get('Launch Successful', 0) -%}
+          {%- if stats.total -%}{{ (successes / stats.total * 100) | round(1) }}%{%- else -%}—{%- endif -%}
+        </span>
+        <span class="card-label">Success rate</span>
+      </div>
+      <div class="card">
+        <span class="card-value">{{ stats.by_provider.keys() | first or "—" }}</span>
+        <span class="card-label">Top provider</span>
+      </div>
+    </section>
+
+    <section class="charts">
+      <div class="chart-box">
+        <h2>Launches per year</h2>
+        <canvas id="byYear"></canvas>
+      </div>
+      <div class="chart-box">
+        <h2>Launches by provider</h2>
+        <canvas id="byProvider"></canvas>
+      </div>
+    </section>
+
+    <section>
+      <div class="tabs">
+        <button class="tab active" data-tab="upcoming">Upcoming ({{ upcoming | length }})</button>
+        <button class="tab" data-tab="past">Past ({{ previous | length }})</button>
+      </div>
+
+      <div class="table-wrap" id="tab-upcoming">
+        <table>
+          <thead>
+            <tr><th>Date (UTC)</th><th>Mission</th><th>Provider</th><th>Pad</th></tr>
+          </thead>
+          <tbody>
+            {% for launch in upcoming %}
+            <tr>
+              <td>{{ launch.net | replace('T', ' ') | truncate(16, true, '') }}</td>
+              <td>{{ launch.name }}</td>
+              <td>{{ (launch.launch_service_provider or {}).name | default('—') }}</td>
+              <td>{{ (launch.pad or {}).name | default('—') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div class="table-wrap" id="tab-past" hidden>
+        <table>
+          <thead>
+            <tr><th>Date (UTC)</th><th>Mission</th><th>Provider</th><th>Pad</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            {% for launch in previous %}
+            {% set status = (launch.status or {}).name | default('Unknown') %}
+            <tr>
+              <td>{{ launch.net | replace('T', ' ') | truncate(16, true, '') }}</td>
+              <td>{{ launch.name }}</td>
+              <td>{{ (launch.launch_service_provider or {}).name | default('—') }}</td>
+              <td>{{ (launch.pad or {}).name | default('—') }}</td>
+              <td>
+                <span class="status status-{{ (launch.status or {}).abbrev | default('tbd') | lower | replace(' ', '-') }}">
+                  {{ status }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Data from <a href="https://thespacedevs.com/llapi">The Space Devs — Launch Library 2</a></p>
+  </footer>
+
+  <script>
+    document.querySelectorAll('.tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(b => b.classList.toggle('active', b === btn));
+        document.querySelectorAll('.table-wrap').forEach(w => {
+          w.hidden = w.id !== 'tab-' + btn.dataset.tab;
+        });
+      });
+    });
+
+    const palette = ['#6ea8fe', '#a78bfa', '#4ade80', '#facc15', '#fb923c',
+                     '#f87171', '#38bdf8', '#e879f9', '#34d399', '#f472b6'];
+    Chart.defaults.color = '#9ca3af';
+    Chart.defaults.borderColor = '#1f2937';
+
+    new Chart(document.getElementById('byYear'), {
+      type: 'bar',
+      data: {
+        labels: {{ stats.by_year.keys() | list | tojson }},
+        datasets: [{
+          label: 'Launches',
+          data: {{ stats.by_year.values() | list | tojson }},
+          backgroundColor: '#6ea8fe',
+        }],
+      },
+      options: {plugins: {legend: {display: false}}},
+    });
+
+    new Chart(document.getElementById('byProvider'), {
+      type: 'doughnut',
+      data: {
+        labels: {{ stats.by_provider.keys() | list | tojson }},
+        datasets: [{
+          data: {{ stats.by_provider.values() | list | tojson }},
+          backgroundColor: palette,
+        }],
+      },
+    });
+  </script>
+</body>
+</html>
