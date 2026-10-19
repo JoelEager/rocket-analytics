@@ -200,6 +200,10 @@ section h2 {
   cursor: pointer;
 }
 
+.table-wrap td[data-net] {
+  white-space: nowrap;
+}
+
 .table-note {
   border-top: 1px solid var(--border);
   color: var(--dim);
