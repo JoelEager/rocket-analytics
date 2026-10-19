@@ -1,11 +1,4 @@
-"""Build the rocket-analytics static site.
-
-Fetches orbital launch data from the free Launch Library 2 API
-(https://ll.thespacedevs.com) and renders a static HTML site into the
-site/ directory, ready to be served by GitHub Pages.
-"""
-
-from __future__ import annotations
+"""Build the rocket-analytics static site."""
 
 import argparse
 import json
@@ -17,69 +10,109 @@ from pathlib import Path
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+PAST_LAUNCH_PAGES = 10
+UPCOMING_LAUNCH_PAGES = 2
 API_BASE = "https://ll.thespacedevs.com/2.2.0"
+MAX_ATTEMPTS = 2
 SITE_DIR = Path("site")
 TEMPLATES_DIR = Path("templates")
 STATIC_DIR = Path("static")
-CACHE_FILE = Path(".launch_cache.json")
+CACHE_FILE = Path("launch_cache.json")
 
 
-def fetch_launches(endpoint: str, limit: int) -> list[dict]:
-    """Fetch launches from LL2. `endpoint` is 'upcoming' or 'previous'.
+def make_request(endpoint, params):
+    """
+    Make a request to the LL2 API with retry logic.
+    
+    Args:
+        endpoint: The API endpoint to request
+        params: The parameters to pass to the API
+        
+    Returns:
+        The response from the API
+    """
+    for attempt in range(MAX_ATTEMPTS):
+        try:
+            response = requests.get(f"{API_BASE}/launch/{endpoint}/", params=params, timeout=30)
+            response.raise_for_status()
+            return response
+        except requests.RequestException as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+    
+    raise Exception("Failed to fetch data from API")
 
-    Paginates (100 per request, the API maximum) until `limit` is reached.
+
+def fetch_launches(endpoint, pages):
+    """
+    Fetch launches from the LL2 API.
+    
+    Args:
+        endpoint: The API endpoint to request
+        pages: The number of pages to fetch
+        
+    Returns:
+        A list of launches
     """
     ordering = "net" if endpoint == "upcoming" else "-net"
-    results: list[dict] = []
-    while len(results) < limit:
-        response = requests.get(
-            f"{API_BASE}/launch/{endpoint}/",
-            params={
-                "limit": min(100, limit - len(results)),
-                "offset": len(results),
-                "ordering": ordering,
-                "mode": "detailed",
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
+    results = []
+
+    for i in range(pages):
+        response = make_request(endpoint, {
+            "limit": 100,
+            "offset": i * 100,
+            "ordering": ordering,
+            "mode": "detailed"
+        })
+        print(f"Got page {i + 1}")
         data = response.json()
         results.extend(data["results"])
+
         if not data.get("next"):
+            print("No more pages to fetch.")
             break
+
     return results
 
 
-def load_cache(path: Path, limit: int) -> tuple[list[dict], list[dict]] | None:
-    """Return cached (upcoming, previous) if the cache covers `limit` rows."""
+def load_cache():
+    """Return cached (upcoming, previous) lists, or None if unavailable."""
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
+        print("Warning: Could not load cache file.")
         return None
+
     upcoming, previous = data.get("upcoming", []), data.get("previous", [])
-    if not upcoming and not previous:
+
+    if not upcoming or not previous:
+        print("Warning: Cache file is missing data.")
         return None
-    if len(upcoming) < limit or len(previous) < limit:
-        return None
-    return upcoming[:limit or None], previous[:limit or None]
+
+    return upcoming, previous, data.get("last_updated")
 
 
-def save_cache(path: Path, upcoming: list[dict], previous: list[dict]) -> None:
+def save_cache(upcoming, previous):
+    """Save the upcoming and previous launches to the cache file."""
     try:
-        path.write_text(
-            json.dumps({"upcoming": upcoming, "previous": previous}),
+        CACHE_FILE.write_text(
+            json.dumps({
+                "upcoming": upcoming, 
+                "previous": previous, 
+                "last_updated": datetime.now(timezone.utc).isoformat()
+            }, indent=2),
             encoding="utf-8",
         )
+        print("Cache saved successfully.")
     except OSError:
-        pass  # Caching is a dev convenience; never fail the build over it.
+        print("Warning: Could not save cache file.")
 
 
-def compute_stats(launches: list[dict]) -> dict:
+def compute_stats(launches):
     """Compute summary analytics from a list of launch objects."""
-    by_year: Counter[str] = Counter()
-    by_provider: Counter[str] = Counter()
-    by_status: Counter[str] = Counter()
-    by_pad: Counter[str] = Counter()
+    by_year = Counter()
+    by_provider = Counter()
+    by_status = Counter()
+    by_pad = Counter()
 
     for launch in launches:
         net = launch.get("net") or ""
@@ -101,26 +134,29 @@ def compute_stats(launches: list[dict]) -> dict:
     }
 
 
-def build_site(upcoming: list[dict], previous: list[dict], output_dir: Path) -> None:
-    """Render templates and copy static assets into `output_dir`."""
+def build_site(upcoming, previous):
+    """Render templates and copy static assets."""
     env = Environment(
         loader=FileSystemLoader(TEMPLATES_DIR),
         autoescape=select_autoescape(("html",)),
     )
 
+    # Remove the site directory if it exists
     try:
-        shutil.rmtree(output_dir)
+        shutil.rmtree(SITE_DIR)
     except OSError:
-        # Directory may be in use (e.g. a local dev server); overwrite in place.
-        pass
-    output_dir.mkdir(parents=True, exist_ok=True)
+        # Directory may be in use (e.g. a local dev server)
+        print("Warning: Unable to remove site directory; overwriting in place.")
+    SITE_DIR.mkdir(parents=True, exist_ok=True)
 
+    # Copy static assets
     if STATIC_DIR.exists():
-        shutil.copytree(STATIC_DIR, output_dir / "static", dirs_exist_ok=True)
+        shutil.copytree(STATIC_DIR, SITE_DIR / "static", dirs_exist_ok=True)
 
-    # Tells GitHub Pages not to run the site through Jekyll.
-    (output_dir / ".nojekyll").touch()
+    # Tell GitHub Pages not to run the site through Jekyll.
+    (SITE_DIR / ".nojekyll").touch()
 
+    # Render the HTML template
     template = env.get_template("index.html")
     html = template.render(
         upcoming=upcoming,
@@ -128,45 +164,31 @@ def build_site(upcoming: list[dict], previous: list[dict], output_dir: Path) -> 
         stats=compute_stats(previous),
         generated_at=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
     )
-    (output_dir / "index.html").write_text(html, encoding="utf-8")
+    (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
+    print(f"Site built in {SITE_DIR}/")
 
 
-def main() -> None:
+def main():
+    """Entry point for the script."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--limit", type=int, default=300,
-                        help="launches to fetch per endpoint (default: 300)")
-    parser.add_argument("--output", type=Path, default=SITE_DIR,
-                        help="output directory (default: site/)")
     parser.add_argument("--refresh", action="store_true",
-                        help="ignore the cached API responses")
-    parser.add_argument("--cache", type=Path, default=CACHE_FILE,
-                        help=f"cache file path (default: {CACHE_FILE})")
+                        help="load fresh data from the API")
     args = parser.parse_args()
 
-    cached = None if args.refresh else load_cache(args.cache, args.limit)
+    cached = None if args.refresh else load_cache()
     if cached:
-        upcoming, previous = cached
+        upcoming, previous, last_updated = cached
         print(f"Using cached data: {len(upcoming)} upcoming, "
-              f"{len(previous)} previous launches")
+              f"{len(previous)} previous launches from {last_updated}")
     else:
-        try:
-            print(f"Fetching up to {args.limit} upcoming launches...")
-            upcoming = fetch_launches("upcoming", args.limit)
-            print(f"Fetching up to {args.limit} previous launches...")
-            previous = fetch_launches("previous", args.limit)
-        except requests.HTTPError as e:
-            # Fetch failed (e.g. rate-limited); fall back to stale cache.
-            stale = load_cache(args.cache, 0)
-            if not stale:
-                raise
-            upcoming, previous = stale
-            print(f"Warning: {e}; using stale cache: "
-                  f"{len(upcoming)} upcoming, {len(previous)} previous")
-        else:
-            save_cache(args.cache, upcoming, previous)
+        print(f"Fetching upcoming launches ({UPCOMING_LAUNCH_PAGES} pages)...")
+        upcoming = fetch_launches("upcoming", UPCOMING_LAUNCH_PAGES)
+        print(f"Fetching previous launches ({PAST_LAUNCH_PAGES} pages)...")
+        previous = fetch_launches("previous", PAST_LAUNCH_PAGES)
 
-    build_site(upcoming, previous, args.output)
-    print(f"Site built in {args.output}/")
+        save_cache(upcoming, previous)
+
+    build_site(upcoming, previous)
 
 
 if __name__ == "__main__":
