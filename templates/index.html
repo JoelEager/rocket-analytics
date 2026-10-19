@@ -93,7 +93,7 @@
     </section>
 
     <section>
-      <h2>Launch details</h2>
+      <h2>Launch activity</h2>
       <div class="tabs" id="launch-tabs">
         <button class="tab active" data-pane="tab-upcoming">Upcoming</button>
         <button class="tab" data-pane="tab-past">Previous</button>
@@ -215,7 +215,6 @@
     ];
 
     const ROCKET_FIELDS = [
-      ['Manufacturer', r => r.manufacturer],
       ['Family', r => r.family],
       ['Variant', r => r.variant],
       ['Status', r => r.active == null ? null : (r.active ? 'Active' : 'Retired')],
@@ -236,7 +235,6 @@
     ];
 
     const AGENCY_FIELDS = [
-      ['Abbrev', a => a.abbrev],
       ['Type', a => a.type],
       ['Country', a => a.country],
       ['Administrator', a => a.administrator],
@@ -315,7 +313,7 @@
     }
 
     const linkList = links => '<ul class="link-list">' + links.map(l =>
-      `<li>${extLink(l.label || l.url, l.url)}${l.title ? ` <span class="muted">${esc(l.title)}</span>` : ''}</li>`
+      `<li>${extLink(l.label || l.url, l.url)}</li>`
     ).join('') + '</ul>';
 
     function renderLinks(d) {

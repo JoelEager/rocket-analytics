@@ -203,7 +203,6 @@ def link_details(*url_lists):
                 links.append({
                     "url": url,
                     "label": pick(entry.get("type"), "name"),
-                    "title": entry.get("title") or entry.get("source"),
                 })
             else:
                 links.append({"url": url})
