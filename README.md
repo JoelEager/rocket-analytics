@@ -10,7 +10,12 @@ deploys it to GitHub Pages. Data comes from the free
 pip install -r requirements.txt
 python main.py            # builds into site/
 python main.py --limit 25 # fetch fewer launches (faster)
+python main.py --refresh  # ignore the API response cache
 ```
+
+Fetched launch data is cached in `.launch_cache.json` (gitignored) so
+repeated builds during development don't re-hit the rate-limited API.
+The cache is reused whenever it covers the requested `--limit`.
 
 Open `site/index.html` in a browser to preview.
 

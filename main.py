@@ -8,6 +8,7 @@ site/ directory, ready to be served by GitHub Pages.
 from __future__ import annotations
 
 import argparse
+import json
 import shutil
 from collections import Counter
 from datetime import datetime, timezone
@@ -20,6 +21,7 @@ API_BASE = "https://ll.thespacedevs.com/2.2.0"
 SITE_DIR = Path("site")
 TEMPLATES_DIR = Path("templates")
 STATIC_DIR = Path("static")
+CACHE_FILE = Path(".launch_cache.json")
 
 
 def fetch_launches(endpoint: str, limit: int) -> list[dict]:
@@ -46,6 +48,30 @@ def fetch_launches(endpoint: str, limit: int) -> list[dict]:
         if not data.get("next"):
             break
     return results
+
+
+def load_cache(path: Path, limit: int) -> tuple[list[dict], list[dict]] | None:
+    """Return cached (upcoming, previous) if the cache covers `limit` rows."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    upcoming, previous = data.get("upcoming", []), data.get("previous", [])
+    if not upcoming and not previous:
+        return None
+    if len(upcoming) < limit or len(previous) < limit:
+        return None
+    return upcoming[:limit or None], previous[:limit or None]
+
+
+def save_cache(path: Path, upcoming: list[dict], previous: list[dict]) -> None:
+    try:
+        path.write_text(
+            json.dumps({"upcoming": upcoming, "previous": previous}),
+            encoding="utf-8",
+        )
+    except OSError:
+        pass  # Caching is a dev convenience; never fail the build over it.
 
 
 def compute_stats(launches: list[dict]) -> dict:
@@ -111,12 +137,33 @@ def main() -> None:
                         help="launches to fetch per endpoint (default: 300)")
     parser.add_argument("--output", type=Path, default=SITE_DIR,
                         help="output directory (default: site/)")
+    parser.add_argument("--refresh", action="store_true",
+                        help="ignore the cached API responses")
+    parser.add_argument("--cache", type=Path, default=CACHE_FILE,
+                        help=f"cache file path (default: {CACHE_FILE})")
     args = parser.parse_args()
 
-    print(f"Fetching up to {args.limit} upcoming launches...")
-    upcoming = fetch_launches("upcoming", args.limit)
-    print(f"Fetching up to {args.limit} previous launches...")
-    previous = fetch_launches("previous", args.limit)
+    cached = None if args.refresh else load_cache(args.cache, args.limit)
+    if cached:
+        upcoming, previous = cached
+        print(f"Using cached data: {len(upcoming)} upcoming, "
+              f"{len(previous)} previous launches")
+    else:
+        try:
+            print(f"Fetching up to {args.limit} upcoming launches...")
+            upcoming = fetch_launches("upcoming", args.limit)
+            print(f"Fetching up to {args.limit} previous launches...")
+            previous = fetch_launches("previous", args.limit)
+        except requests.HTTPError as e:
+            # Fetch failed (e.g. rate-limited); fall back to stale cache.
+            stale = load_cache(args.cache, 0)
+            if not stale:
+                raise
+            upcoming, previous = stale
+            print(f"Warning: {e}; using stale cache: "
+                  f"{len(upcoming)} upcoming, {len(previous)} previous")
+        else:
+            save_cache(args.cache, upcoming, previous)
 
     build_site(upcoming, previous, args.output)
     print(f"Site built in {args.output}/")
