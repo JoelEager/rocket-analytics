@@ -116,6 +116,60 @@ section h2 {
   position: relative;
 }
 
+.chart-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.chart-head h2 {
+  margin-bottom: 0;
+}
+
+.seg {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+}
+
+.seg[hidden] {
+  display: none;
+}
+
+.seg-btn {
+  background: var(--surface);
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+}
+
+.seg-btn:hover {
+  color: var(--text);
+}
+
+.seg-btn.active {
+  background: var(--surface-active);
+  box-shadow: inset 0 0 0 1px var(--accent-strong);
+  color: var(--text);
+}
+
+.seg-btn + .seg-btn {
+  border-left: 1px solid var(--border);
+}
+
+.seg-btn:first-child {
+  border-radius: 7px 0 0 7px;
+}
+
+.seg-btn:last-child {
+  border-radius: 0 7px 7px 0;
+}
+
 /* Tabs and filter */
 
 .tabs {

@@ -71,7 +71,14 @@
 
     <section class="charts">
       <div class="chart-box">
-        <h2>All-time launches (observed rockets)</h2>
+        <div class="chart-head">
+          <h2>Launches (observed rockets)</h2>
+          <div class="seg" id="chart-scope">
+            <button class="seg-btn active" data-scope="all">All time</button>
+            <button class="seg-btn" data-scope="year">{{ stats.year_label }}</button>
+            <button class="seg-btn" data-scope="prev">{{ stats.prev_year_label }}</button>
+          </div>
+        </div>
         <div class="tabs" id="chart-tabs">
           <button class="tab active" data-pane="chart-rocket">By rocket</button>
           <button class="tab" data-pane="chart-manufacturer">By manufacturer</button>
@@ -395,7 +402,7 @@
     Chart.defaults.borderColor = '#1f2937';
 
     function barChart(id, data, fullNames) {
-      return new Chart($(id), {
+      const chart = new Chart($(id), {
         type: 'bar',
         data: {
           labels: Object.keys(data),
@@ -415,6 +422,12 @@
           },
         },
       });
+      chart.updateData = d => {
+        chart.data.labels = Object.keys(d);
+        chart.data.datasets[0].data = Object.values(d);
+        chart.update();
+      };
+      return chart;
     }
 
     const charts = {
@@ -424,6 +437,26 @@
     };
     wireTabs('#chart-tabs .tab', '.chart-pane',
       btn => charts[btn.dataset.pane].resize());
+
+    const SCOPE_DATA = {
+      all: {'chart-rocket': STATS.by_rocket,
+            'chart-manufacturer': STATS.by_manufacturer},
+      prev: {'chart-rocket': STATS.by_rocket_prev_year,
+             'chart-manufacturer': STATS.by_manufacturer_prev_year},
+      year: {'chart-rocket': STATS.by_rocket_year,
+             'chart-manufacturer': STATS.by_manufacturer_year},
+    };
+    const scopeBtns = [...document.querySelectorAll('#chart-scope .seg-btn')];
+    scopeBtns.forEach(btn => btn.addEventListener('click', () => {
+      scopeBtns.forEach(b => b.classList.toggle('active', b === btn));
+      for (const pane in charts) {
+        charts[pane].updateData(SCOPE_DATA[btn.dataset.scope][pane]);
+      }
+    }));
+    if (!STATS.year_label) $('chart-scope').hidden = true;
+    else if (!Object.keys(SCOPE_DATA.prev['chart-rocket']).length) {
+      scopeBtns.find(b => b.dataset.scope === 'prev').remove();
+    }
   </script>
 </body>
 </html>

@@ -3,7 +3,7 @@
 import argparse
 import json
 import shutil
-from collections import Counter
+from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -255,8 +255,11 @@ def collect_entities(launches):
     return entities
 
 
-def compute_stats(rockets):
-    """Compute summary analytics from the deduplicated rocket set."""
+def compute_stats(rockets, previous):
+    """Compute summary analytics from the deduplicated rocket set.
+
+    Yearly stats are tallied from the fetched launches, since the API has
+    no per-rocket yearly counts."""
     by_rocket = {}
     by_manufacturer = Counter()
     manufacturer_names = {}
@@ -270,14 +273,40 @@ def compute_stats(rockets):
             by_manufacturer[label] += r["launches"]
             manufacturer_names[label] = r["manufacturer"]
 
+    year = (previous[0].get("net") or "")[:4] if previous else ""
+    prev_year = str(int(year) - 1) if year else ""
+    per_year = defaultdict(lambda: [Counter(), Counter()])
+    for launch in previous:
+        launch_year = (launch.get("net") or "")[:4]
+        if launch_year not in (year, prev_year):
+            continue
+        rocket_counts, mfr_counts = per_year[launch_year]
+        config = pick(launch.get("rocket"), "configuration") or {}
+        if name := config.get("full_name") or config.get("name"):
+            rocket_counts[name] += 1
+        manufacturer = config.get("manufacturer") or {}
+        if manufacturer.get("name"):
+            label = manufacturer.get("abbrev") or manufacturer["name"]
+            mfr_counts[label] += 1
+            manufacturer_names[label] = manufacturer["name"]
+
+    by_rocket_year, by_manufacturer_year = per_year[year]
+    by_rocket_prev, by_manufacturer_prev = per_year[prev_year]
+    top = lambda c: dict(c.most_common(10))
     return {
         "rocket_count": len(rockets),
         "total": sum(by_rocket.values()),
         "successful": sum(r.get("successful") or 0 for r in rockets.values()),
         "by_rocket": dict(sorted(by_rocket.items(), key=lambda kv: kv[1],
                                  reverse=True)[:10]),
-        "by_manufacturer": dict(by_manufacturer.most_common(10)),
+        "by_rocket_year": top(by_rocket_year),
+        "by_rocket_prev_year": top(by_rocket_prev),
+        "by_manufacturer": top(by_manufacturer),
+        "by_manufacturer_year": top(by_manufacturer_year),
+        "by_manufacturer_prev_year": top(by_manufacturer_prev),
         "manufacturer_names": manufacturer_names,
+        "year_label": year,
+        "prev_year_label": prev_year,
     }
 
 
@@ -315,7 +344,7 @@ def build_site(upcoming, previous, data_updated):
         upcoming_detail=[launch_detail(launch) for launch in upcoming],
         previous_detail=[launch_detail(launch) for launch in previous],
         entities=entities,
-        stats=compute_stats(entities["rockets"]),
+        stats=compute_stats(entities["rockets"], previous),
         data_updated=data_updated,
     )
     (SITE_DIR / "index.html").write_text(html, encoding="utf-8")
