@@ -294,13 +294,13 @@ def compute_stats(rockets, previous):
 
     by_rocket_year, by_manufacturer_year = per_year[year]
     by_rocket_prev, by_manufacturer_prev = per_year[prev_year]
-    top = lambda c: dict(c.most_common(10))
+    top = lambda c: dict(c.most_common())
     return {
         "rocket_count": len(rockets),
         "total": sum(by_rocket.values()),
         "successful": sum(r.get("successful") or 0 for r in rockets.values()),
         "by_rocket": dict(sorted(by_rocket.items(), key=lambda kv: kv[1],
-                                 reverse=True)[:10]),
+                                 reverse=True)),
         "by_rocket_year": top(by_rocket_year),
         "by_rocket_prev_year": top(by_rocket_prev),
         "by_manufacturer": top(by_manufacturer),
