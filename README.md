@@ -5,7 +5,7 @@ the [Launch Library 2](https://thespacedevs.com/llapi) API and builds static HTM
 using Jinja2. Hosted on GitHub Pages and automatically updated via GitHub 
 Actions every 6 hours.
 
-[See it here](https://joeleager.github.io/rocket-analytics/)
+[See it here](https://krocketcoding.github.io/rocket-analytics/)
 
 ## Usage
 
