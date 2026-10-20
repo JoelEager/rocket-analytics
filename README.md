@@ -41,3 +41,8 @@ Open `site/index.html` in a browser to preview.
 - Workflow runs share a `pages` concurrency group: pushes cancel any
   in-progress run so the newest commit deploys promptly, while scheduled
   and manual runs queue instead.
+
+## Useful Links
+- Launch Library 2 API
+  - [Documentation](https://ll.thespacedevs.com/docs/)
+  - [FAQ](https://github.com/TheSpaceDevs/Tutorials/blob/main/faqs/faq_LL2.md)
