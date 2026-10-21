@@ -33,8 +33,16 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Rocket Analytics</title>
+  {% if inline_css %}
+  <style>{{ inline_css | safe }}</style>
+  {% else %}
   <link rel="stylesheet" href="static/style.css">
+  {% endif %}
+  {% if inline_js %}
+  <script>{{ inline_js | safe }}</script>
+  {% else %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  {% endif %}
 </head>
 <body>
   <header>
@@ -108,9 +116,9 @@
       {{ launch_table('past', previous, 'Showing the last ' ~ previous | length ~ ' launches', with_status=true, hidden=true) }}
     </section>
     <div class="footer-note">
-      Data from <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener">Launch Library</a> ·
-      Updated <span id="data-updated" data-ts="{{ data_updated or '' }}"></span> ·
-      <a href="https://github.com/krocketcoding/rocket-analytics" target="_blank" rel="noopener">GitHub repository</a>
+      Data from {% if offline %}Launch Library{% else %}<a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener">Launch Library</a>{% endif %} ·
+      Updated <span id="data-updated" data-ts="{{ data_updated or '' }}"></span>{% if not offline %} ·
+      <a href="https://github.com/krocketcoding/rocket-analytics" target="_blank" rel="noopener">GitHub repository</a>{% endif %}
     </div>
   </main>
 
@@ -122,7 +130,7 @@
         <button class="tab active" data-pane="mtab-overview">Launch</button>
         <button class="tab" data-pane="mtab-entities">Hardware & Orgs</button>
         <button class="tab" data-pane="mtab-updates">Updates</button>
-        <button class="tab" data-pane="mtab-links">Links</button>
+        {% if not offline %}<button class="tab" data-pane="mtab-links">Links</button>{% endif %}
       </div>
       <div class="modal-pane" id="mtab-overview">
         <img id="modal-image" class="modal-image" hidden alt="">
