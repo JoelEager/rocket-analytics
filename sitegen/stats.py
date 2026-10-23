@@ -61,6 +61,8 @@ def compute_stats(rockets, previous):
     # Chart labels use the manufacturer abbreviation; keep the full name
     # around so the frontend can show it too.
     manufacturer_names = {}
+    # Rocket name -> manufacturer country, for the chart's country filter.
+    rocket_countries = {}
     # Tally fetched launches per calendar year. Each year gets a
     # name -> category dict per chart grouping: rockets, manufacturers,
     # and countries.
@@ -93,6 +95,12 @@ def compute_stats(rockets, previous):
         name = r.get("name")
         if not r.get("launches"):
             continue
+        # Only rockets that can appear in the charts get a country
+        # mapping — otherwise dead codes like the API's '???' (on
+        # never-launched "Unknown Launch Vehicle") end up as filter
+        # options that can only produce an empty chart.
+        if r.get("manufacturer_country") and name:
+            rocket_countries[name] = r["manufacturer_country"]
         cats = {"success": r.get("successful") or 0, "failed": r.get("failed") or 0}
         if name:
             by_rocket[name] = cats
@@ -117,8 +125,11 @@ def compute_stats(rockets, previous):
         years = years[:-1]
 
     # Tooltip names for every code the chart can show, resolved once here
-    # so the axis labels can stay as the short codes.
-    country_codes = set(country_pool) | {c for _, _, counts in per_year.values() for c in counts}
+    # so the axis labels can stay as the short codes. rocket_countries is
+    # included so the country filter can name codes like '???' (Unknown)
+    # that belong to rockets with no recorded launches.
+    country_codes = (set(country_pool) | set(rocket_countries.values()) |
+                     {c for _, _, counts in per_year.values() for c in counts})
 
     yearly = {}
     for year in years:
@@ -137,4 +148,5 @@ def compute_stats(rockets, previous):
         "yearly": yearly,
         "manufacturer_names": manufacturer_names,
         "country_names": {code: country_name(code) for code in country_codes},
+        "rocket_countries": rocket_countries,
     }

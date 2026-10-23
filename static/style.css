@@ -499,8 +499,97 @@ tbody tr:hover {
   border: 1px solid var(--border);
   border-radius: 8px;
   color: var(--text);
+  cursor: pointer;
   font-size: 0.9rem;
   padding: 0.4rem 0.6rem;
+}
+
+/* Slot filter controls (year seg, country picker…) sit in a row inside
+   the slot head and wrap under each other on narrow slots. */
+
+.slot-filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+/* Country filter: button summarizes the live selection and opens a
+   checkbox popover below the slot head. */
+
+.country-filter {
+  position: relative;
+}
+
+.country-filter .chart-pick {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Accent outline while a selection is actually filtering the chart. */
+.country-filter.has-sel .chart-pick {
+  box-shadow: inset 0 0 0 1px var(--accent-strong);
+}
+
+.country-pop {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+  gap: 0.3rem;
+  left: 0;
+  max-height: 280px;
+  min-width: 210px;
+  overflow-y: auto;
+  padding: 0.6rem 0.75rem;
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 5;
+}
+
+.country-pop[hidden] {
+  display: none;
+}
+
+.country-pop-head {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.2rem;
+}
+
+.country-clear {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0;
+}
+
+.country-clear:hover {
+  color: var(--text);
+}
+
+.country-row {
+  align-items: center;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: flex;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.country-negate {
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+  margin-bottom: 0.2rem;
+  padding-bottom: 0.4rem;
 }
 
 .slot-close {
