@@ -16,13 +16,18 @@ LAUNCH_CACHE_FILE = Path("launch_cache.json")
 # Alternate output: a portable offline single-file build with all
 # resources inlined.
 OFFLINE_FILE = SITE_DIR / "rocket-analytics-offline.html"
-CHARTJS_FILE = STATIC_DIR / "chart.umd.min.js"
+CHARTJS_FILE = STATIC_DIR / "chart-library.min.js"
 APPJS_FILE = STATIC_DIR / "app.js"
+CHART_FACTORIES_FILE = STATIC_DIR / "chart-factories.js"
+CHART_DEFS_FILE = STATIC_DIR / "chart-defs.js"
 CHARTS_FILE = STATIC_DIR / "charts.js"
 CSS_FILE = STATIC_DIR / "style.css"
-# Script files in load order: charts.js uses globals from app.js and the
-# vendored Chart.js library, so it loads last.
-JS_FILES = [CHARTJS_FILE, APPJS_FILE, CHARTS_FILE]
+# Script files in load order: everything shares top-level bindings, so
+# the vendored library and app.js come first and each chart file gets
+# the globals its predecessors defined. charts.js does the wiring, so
+# it loads last.
+JS_FILES = [CHARTJS_FILE, APPJS_FILE, CHART_FACTORIES_FILE,
+            CHART_DEFS_FILE, CHARTS_FILE]
 
 # Images embedded in the offline build are downscaled to display size.
 PATCH_IMAGE_PX = 128   # mission patches render at 72px

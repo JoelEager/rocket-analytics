@@ -1,6 +1,7 @@
 // Rocket Analytics front end: launch/rocket tables and detail modals.
-// Chart code lives in charts.js, which loads after this file (JS_FILES
-// in sitegen/config.py) and shares its top-level bindings.
+// Chart code lives in chart-factories.js, chart-defs.js, and
+// charts.js, which load after this file (JS_FILES in
+// sitegen/config.py) and share its top-level bindings.
 // All data is baked into the page by the build as JSON inside
 // <script type="application/json"> tags; parse it once up front.
 

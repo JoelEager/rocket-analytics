@@ -28,7 +28,7 @@ patches and rocket images are downloaded, downscaled to display size, and embedd
 `data-images` map (`PATCH_IMAGE_PX`, `ROCKET_IMAGE_PX`, and `IMAGE_QUALITY` in `sitegen/config.py` control the
 size/quality tradeoff); all other remote URLs and external links are stripped out. Processed images are cached in
 `image-cache/` (gitignored) so repeat builds don't re-download them. The Chart.js library is vendored
-as `static/chart.umd.min.js` and used by both versions of the site; the offline build is skipped if a static file is missing.
+as `static/chart-library.min.js` and used by both versions of the site; the offline build is skipped if a static file is missing.
 
 ## How it works
 
@@ -77,9 +77,10 @@ LL2 API ──fetch──> launch dicts ──curate──> details + entities +
   into data URIs, strips other remote URLs, and re-renders the template with everything inlined.
 - `templates/index.html` — the site's markup as one Jinja template; all charts and tables are driven by the context
   dict built in `build.py`. Reusable table and modal markup lives in `templates/macros.html`, imported at the top.
-- `static/` — the stylesheet, the page's JavaScript (`app.js` for tables, filter, and detail modals; `charts.js` for
-  the chart registry, inline chart box, and explorer modal), and a vendored Chart.js — copied into `site/` verbatim
-  and inlined for the offline build.
+- `static/` — the stylesheet, the page's JavaScript (`app.js` for tables, filter, and detail modals; the chart code
+  split across `chart-factories.js` for Chart.js factories, `chart-defs.js` for the chart registry, and `charts.js`
+  for the wiring — the filter controls, inline chart box, and explorer modal), and a vendored Chart.js — copied into
+  `site/` verbatim and inlined for the offline build.
 - `api-examples/` — sample API responses. Open these to see the raw shape of a launch record before it's curated by
   `details.py`.
 
