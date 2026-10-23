@@ -567,7 +567,9 @@ tbody tr:hover {
   font-size: 0.85rem;
   gap: 0.3rem;
   left: 0;
-  max-height: 280px;
+  /* The 75vh cap keeps the long pickers (rockets run 100+) inside
+     short landscape windows. */
+  max-height: min(480px, 75vh);
   min-width: 210px;
   overflow-y: auto;
   padding: 0.6rem 0.75rem;
@@ -601,6 +603,26 @@ tbody tr:hover {
   color: var(--text);
 }
 
+/* Popover filter box — --bg reads as inset against the popover's
+   --surface. */
+.pop-search {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 0.3rem 0.6rem;
+}
+
+.pop-search:focus {
+  border-color: var(--accent-strong);
+  outline: none;
+}
+
+.pop-search::placeholder {
+  color: var(--dim);
+}
+
 .country-row {
   align-items: center;
   color: var(--text-soft);
@@ -608,6 +630,12 @@ tbody tr:hover {
   display: flex;
   gap: 0.45rem;
   white-space: nowrap;
+}
+
+/* display:flex above would defeat the hidden attribute the popover
+   filter box sets on non-matching rows. */
+.country-row[hidden] {
+  display: none;
 }
 
 .country-negate {

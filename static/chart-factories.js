@@ -59,7 +59,7 @@ const rowTotal = v => (v && typeof v === 'object')
 const SEGMENTS = {
   success:    {label: 'Success',    color: '#4ade80'},
   orbital:    {label: 'Orbital',    color: '#6ea8fe'},
-  suborbital: {label: 'Suborbital', color: '#a78bfa'},
+  suborbital: {label: 'Suborbital', color: '#fbbf24'},
   failed:     {label: 'Failed',     color: '#f87171'},
   total:      {label: 'Total',      color: '#6ea8fe'},
 };

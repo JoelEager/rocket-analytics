@@ -32,6 +32,25 @@ function makeScopeSeg(scope, onChange, scopes) {
 // (yearly keys arrive newest-first from the stats build).
 const ALL_SCOPES = ['all', ...Object.keys(STATS.yearly).reverse()];
 
+// Search box at the top of a .country-pop: typing narrows the option
+// rows by label text. The country picker's negate row is a mode
+// toggle, not an option, so it's exempt from the filter.
+function addPopSearch(pop) {
+  const input = document.createElement('input');
+  input.type = 'search';
+  input.className = 'pop-search';
+  input.placeholder = 'Filter…';
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    pop.querySelectorAll('.country-row:not(.country-negate)')
+      .forEach(row => {
+        row.hidden = q !== '' && !row.textContent.toLowerCase().includes(q);
+      });
+  });
+  pop.append(input);
+  return input;
+}
+
 // Multi-select country picker with an Exclude toggle: a button opens a
 // checkbox list so a dozen-plus options don't crowd the slot header.
 // The button summarizes the live selection ("Country: not USA, CHN" /
@@ -66,6 +85,7 @@ function makeCountryFilter(sel, onChange, map) {
   clear.textContent = 'Clear';
   head.append('Countries', clear);
   pop.append(head);
+  const search = addPopSearch(pop);
   const negRow = document.createElement('label');
   negRow.className = 'country-row country-negate';
   const negCb = document.createElement('input');
@@ -108,7 +128,10 @@ function makeCountryFilter(sel, onChange, map) {
     countryCbs.forEach(cb => { cb.checked = false; });
     emit();
   });
-  btn.addEventListener('click', () => { pop.hidden = !pop.hidden; });
+  btn.addEventListener('click', () => {
+    pop.hidden = !pop.hidden;
+    if (!pop.hidden) search.focus();
+  });
   label();
   wrap.append(btn, pop);
   return wrap;
@@ -150,6 +173,7 @@ function makeRocketFilter(sel, onChange, def) {
   clear.textContent = 'Clear';
   head.append('Rockets', clear);
   pop.append(head);
+  const search = addPopSearch(pop);
   const cbs = [];
   for (const [v, name] of list) {
     const row = document.createElement('label');
@@ -171,7 +195,10 @@ function makeRocketFilter(sel, onChange, def) {
     cbs.forEach(cb => { cb.checked = false; });
     emit();
   });
-  btn.addEventListener('click', () => { pop.hidden = !pop.hidden; });
+  btn.addEventListener('click', () => {
+    pop.hidden = !pop.hidden;
+    if (!pop.hidden) search.focus();
+  });
   label();
   wrap.append(btn, pop);
   return wrap;
@@ -261,6 +288,7 @@ const FILTER_BUILDERS = {
     reset.textContent = 'Reset';
     head.append('Entities', reset);
     pop.append(head);
+    const search = addPopSearch(pop);
     const cbs = new Map();
     for (const [v, name] of list) {
       const row = document.createElement('label');
@@ -289,7 +317,10 @@ const FILTER_BUILDERS = {
       cbs.forEach((cb, v) => { cb.checked = sel.has(v); });
       emit();
     });
-    btn.addEventListener('click', () => { pop.hidden = !pop.hidden; });
+    btn.addEventListener('click', () => {
+      pop.hidden = !pop.hidden;
+      if (!pop.hidden) search.focus();
+    });
     label();
     wrap.append(btn, pop);
     return wrap;

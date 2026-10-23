@@ -49,15 +49,19 @@ def new_cat():
     return {"orbital": 0, "suborbital": 0, "failed": 0}
 
 
+# Rows sort by descending total; ties break alphabetically by name —
+# the rocket table's final tiebreak (its middle key, LEO capacity,
+# isn't part of the cat rows).
 def top_cat(cats):
     """{name: cat dict} -> same shape ordered by descending total."""
-    return dict(sorted(cats.items(), key=lambda kv: -sum(kv[1].values())))
+    return dict(sorted(cats.items(),
+                       key=lambda kv: (-sum(kv[1].values()), kv[0])))
 
 
 def top_nested(cats):
     """{name: {inner: cat dict}} -> same shape ordered by grand total."""
     return dict(sorted(cats.items(), key=lambda kv:
-        -sum(sum(inner.values()) for inner in kv[1].values())))
+        (-sum(sum(inner.values()) for inner in kv[1].values()), kv[0])))
 
 
 def compute_stats(rockets, previous):
@@ -190,7 +194,7 @@ def compute_stats(rockets, previous):
         # site charts' 'all' scope. It's a flat number with no success/
         # failure or rocket breakdown, unlike the per-year tallies.
         "site_totals": dict(sorted(site_totals.items(),
-                                   key=lambda kv: -kv[1])),
+                                   key=lambda kv: (-kv[1], kv[0]))),
         "site_countries": site_countries,
         "site_names": site_names,
     }

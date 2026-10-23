@@ -30,10 +30,11 @@ def build_context(upcoming, previous, entities, data_updated):
         upcoming_detail=[launch_detail(launch) for launch in upcoming],
         previous_detail=[launch_detail(launch) for launch in previous],
         entities=entities,
-        # Rocket table rows ordered by launch count, then mass, then name.
+        # Rocket table rows ordered by launch count, then LEO capacity,
+        # then name.
         rocket_rows=sorted(entities["rockets"].items(),
                            key=lambda kv: (-(kv[1].get("launches") or 0),
-                                           -(kv[1].get("launch_mass") or 0),
+                                           -(kv[1].get("leo_capacity") or 0),
                                            kv[1].get("name") or "")),
         stats=compute_stats(entities["rockets"], previous),
         data_updated=data_updated,

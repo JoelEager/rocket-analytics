@@ -32,7 +32,7 @@
   <table>
     <thead>
       <tr>
-        <th>Name</th><th>Provider</th><th class="sortable" data-sort="launch_mass">Launch mass</th><th class="sortable" data-sort="launches" data-dir="desc">Successful /<br>attempted</th>
+        <th>Name</th><th>Provider</th><th class="sortable" data-sort="leo_capacity">LEO capacity</th><th class="sortable" data-sort="launches" data-dir="desc">Successful /<br>attempted</th>
       </tr>
     </thead>
     <tbody>
@@ -40,7 +40,7 @@
       <tr data-set="rockets" data-id="{{ id }}">
         <td>{{ rocket.name or '—' }}</td>
         <td>{{ rocket.manufacturer or '—' }}</td>
-        <td>{{ '{:,} t'.format(rocket.launch_mass) if rocket.launch_mass is not none else '—' }}</td>
+        <td>{{ '{:,} kg'.format(rocket.leo_capacity) if rocket.leo_capacity is not none else '—' }}</td>
         <td>{{ (rocket.successful or 0) ~ ' / ' ~ rocket.launches if rocket.launches is not none else '—' }}</td>
       </tr>
       {% endfor %}
