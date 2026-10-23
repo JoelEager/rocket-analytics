@@ -469,8 +469,10 @@ const rowTotal = v => (v && typeof v === 'object')
   ? Object.values(v).reduce((a, b) => a + b, 0) : v;
 
 // Force both slots onto the same y-axis when they chart the same unit, so
-// bar heights compare honestly. The max comes from each slot's full
-// dataset, not just the visible page.
+// bar heights compare honestly. The bound comes from each slot's full
+// dataset, not just the visible page. It's a suggestedMax, not max:
+// Chart.js still rounds the axis top up to a nice number (a hard max of
+// e.g. 637 produced ugly ticks) while never dropping below it.
 function syncAxes() {
   const units = slots.map(s => CHART_DEFS[s.defId].unit);
   const shared = slots.length === 2 && units[0] && units[0] === units[1];
@@ -479,7 +481,7 @@ function syncAxes() {
         Object.values(CHART_DEFS[s.defId].data(s.filters)).map(rowTotal)))
     : 0;
   slots.forEach(s => {
-    s.inst.chart.options.scales.y.max = max || undefined;
+    s.inst.chart.options.scales.y.suggestedMax = max || undefined;
     s.inst.chart.update();
   });
 }
@@ -510,8 +512,11 @@ function addSlot(defId, filters) {
     inst: null,
   };
   const select = el.querySelector('.chart-pick');
+  // Options carry the "Launch bars" type prefix (the inline tabs keep
+  // the short label); a non-bar def would get its own prefix instead.
   select.innerHTML = Object.entries(CHART_DEFS)
-    .map(([id, d]) => `<option value="${id}">${esc(d.label)}</option>`)
+    .map(([id, d]) =>
+      `<option value="${id}">Launch bars ${esc(d.label.toLowerCase())}</option>`)
     .join('');
   select.value = defId;
   select.addEventListener('change', () => {

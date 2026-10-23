@@ -147,23 +147,27 @@ section h2 {
   margin-bottom: 0;
 }
 
-/* Primary CTA under the chart box: opens the chart explorer modal */
-.all-charts-btn {
+/* Primary accent CTA: All charts launcher, Split view button */
+.btn-accent {
   background: var(--accent-strong);
   border: none;
   border-radius: 8px;
   color: #fff;
   cursor: pointer;
-  display: block;
   font-size: 1rem;
   font-weight: 600;
-  margin: 1rem auto 0;
   padding: 0.65rem 1.75rem;
 }
 
-.all-charts-btn:hover {
+.btn-accent:hover {
   background: var(--accent);
   color: var(--bg);
+}
+
+/* Centered launcher under the chart box: opens the explorer modal */
+.all-charts-btn {
+  display: block;
+  margin: 1rem auto 0;
 }
 
 .seg {
@@ -592,19 +596,32 @@ tbody tr:hover {
   padding-bottom: 0.4rem;
 }
 
+/* Slot remove control: a bordered chip so it reads as a button and is
+   visually distinct from the modal's bare ×. */
 .slot-close {
-  background: none;
-  border: none;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
   color: var(--muted);
   cursor: pointer;
-  font-size: 1.1rem;
+  display: inline-flex;
+  font-size: 0.9rem;
+  justify-content: center;
   line-height: 1;
   margin-left: auto;
-  padding: 0.25rem;
+  padding: 0.4rem 0.6rem;
 }
 
 .slot-close:hover {
+  border-color: var(--accent-strong);
   color: var(--text);
+}
+
+/* display:inline-flex would otherwise beat the UA [hidden] rule and
+   keep the button visible on the last remaining slot */
+.slot-close[hidden] {
+  display: none;
 }
 
 /* Slot canvases stretch to fill instead of the inline box's fixed height */
