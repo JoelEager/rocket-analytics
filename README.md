@@ -28,10 +28,10 @@ Open `site/index.html` in a browser to preview.
 
 Each build also produces `site/rocket-analytics-offline.html`, a portable
 single-file version of the site with the stylesheet and Chart.js inlined
-and remote image URLs and external links stripped out — it can be opened in any browser
-without an internet connection. Chart.js is downloaded once from
-the CDN and cached in `vendor/` for later builds; if the download fails,
-the bundle is skipped but the normal site still builds.
+and remote image URLs and external links stripped out — it can be opened in 
+any browser without an internet connection. Chart.js is vendored in
+`static/chart.js` and used by both versions of the site; the bundle is
+skipped if a static file is missing.
 
 ## How it works
 
@@ -55,3 +55,6 @@ the bundle is skipped but the normal site still builds.
 - Launch Library 2 API
   - [Documentation](https://ll.thespacedevs.com/docs/)
   - [FAQ](https://github.com/TheSpaceDevs/Tutorials/blob/main/faqs/faq_LL2.md)
+- Chart.js (v4.5.1)
+  - [Documentation](https://www.chartjs.org/docs/4.5.1/)
+  - [Sample charts](https://www.chartjs.org/docs/4.5.1/samples/)

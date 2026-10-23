@@ -24,8 +24,7 @@ CACHE_FILE = Path("launch_cache.json")
 
 # Alternate output: a portable single-file build with all resources inlined.
 BUNDLE_FILE = SITE_DIR / "rocket-analytics-offline.html"
-CHARTJS_URL = "https://cdn.jsdelivr.net/npm/chart.js@4"
-CHARTJS_FILE = Path("vendor") / "chart.js"
+CHARTJS_FILE = STATIC_DIR / "chart.js"
 
 
 def get_json(endpoint, params):
@@ -371,28 +370,6 @@ def inline_safe(code):
     return re.sub(r"</(script|style)", r"<\\/\1", code, flags=re.IGNORECASE)
 
 
-def get_chartjs():
-    """Return the Chart.js source, downloading and caching it on first use."""
-    try:
-        return CHARTJS_FILE.read_text(encoding="utf-8")
-    except OSError:
-        pass
-    try:
-        response = requests.get(CHARTJS_URL, timeout=30)
-        response.raise_for_status()
-        js = response.text
-    except requests.RequestException as e:
-        print(f"Warning: Could not download Chart.js ({e}); "
-              "skipping single-file bundle.")
-        return None
-    try:
-        CHARTJS_FILE.parent.mkdir(exist_ok=True)
-        CHARTJS_FILE.write_text(js, encoding="utf-8")
-    except OSError:
-        print("Warning: Could not cache Chart.js.")
-    return js
-
-
 EXTERNAL_FIELDS = {"image", "infographic", "mission_patches", "profile_image",
                    "info_url", "wiki_url", "map_url", "links", "mission_links"}
 
@@ -409,12 +386,10 @@ def scrub_external(value):
 
 def build_bundle(template, context):
     """Render the site again with CSS and JS inlined into one HTML file."""
-    chartjs = get_chartjs()
     try:
+        chartjs = CHARTJS_FILE.read_text(encoding="utf-8")
         css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     except OSError:
-        css = None
-    if chartjs is None or css is None:
         print(f"Warning: Skipping {BUNDLE_FILE}.")
         return
     offline = {k: scrub_external(v) if k.endswith("detail") or k == "entities"
