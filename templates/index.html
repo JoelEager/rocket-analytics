@@ -97,13 +97,20 @@
           <h2>Launches (observed rockets)</h2>
           <div class="seg" id="chart-scope">
             <button class="seg-btn active" data-scope="all">All time</button>
-            <button class="seg-btn" data-scope="year">{{ stats.year_label }}</button>
-            <button class="seg-btn" data-scope="prev">{{ stats.prev_year_label }}</button>
+            {% for year in stats.yearly %}
+            <button class="seg-btn" data-scope="{{ year }}">{{ year }}</button>
+            {% endfor %}
           </div>
         </div>
         <div class="tabs" id="chart-tabs">
           <button class="tab active" data-pane="chart-rocket">By rocket</button>
           <button class="tab" data-pane="chart-manufacturer">By manufacturer</button>
+          <div class="seg pager" id="chart-pager" hidden>
+            <button class="seg-btn" id="pager-prev" aria-label="Previous page">‹</button>
+            <select class="pager-select" id="pager-select" aria-label="Page"></select>
+            <span class="pager-total" id="pager-total"></span>
+            <button class="seg-btn" id="pager-next" aria-label="Next page">›</button>
+          </div>
         </div>
         <div class="chart-pane" id="chart-rocket">
           <canvas id="byRocket"></canvas>
@@ -501,19 +508,24 @@
     Chart.defaults.color = '#9ca3af';
     Chart.defaults.borderColor = '#1f2937';
 
+    const PAGE_SIZE = 10;
+
     function barChart(id, data, fullNames) {
       const chart = new Chart($(id), {
         type: 'bar',
         data: {
-          labels: Object.keys(data),
+          labels: [],
           datasets: [{
             label: 'Launches',
-            data: Object.values(data),
+            data: [],
             backgroundColor: '#6ea8fe',
           }],
         },
         options: {
           maintainAspectRatio: false,
+          scales: {
+            y: {ticks: {precision: 0}},
+          },
           plugins: {
             legend: {display: false},
             tooltip: fullNames ? {callbacks: {
@@ -522,11 +534,19 @@
           },
         },
       });
-      chart.updateData = d => {
-        chart.data.labels = Object.keys(d);
-        chart.data.datasets[0].data = Object.values(d);
+      let full = {};
+      chart.pageCount = () =>
+        Math.max(1, Math.ceil(Object.keys(full).length / PAGE_SIZE));
+      chart.setPage = p => {
+        chart.page = Math.max(0, Math.min(p, chart.pageCount() - 1));
+        const entries = Object.entries(full)
+          .slice(chart.page * PAGE_SIZE, (chart.page + 1) * PAGE_SIZE);
+        chart.data.labels = entries.map(([k]) => k);
+        chart.data.datasets[0].data = entries.map(([, v]) => v);
         chart.update();
       };
+      chart.setData = d => { full = d; chart.setPage(0); };
+      chart.setData(data);
       return chart;
     }
 
@@ -535,28 +555,53 @@
       'chart-manufacturer': barChart('byManufacturer', STATS.by_manufacturer,
                                    STATS.manufacturer_names),
     };
+    const activeChart = () => charts[
+      document.querySelector('#chart-tabs .tab.active').dataset.pane];
+
+    const pagerEl = $('chart-pager');
+    const pagerBtns = [$('pager-prev'), $('pager-next')];
+    const pagerSelect = $('pager-select');
+    function refreshPager() {
+      const c = activeChart(), n = c.pageCount();
+      pagerEl.hidden = n <= 1;
+      pagerBtns[0].disabled = c.page <= 0;
+      pagerBtns[1].disabled = c.page >= n - 1;
+      if (pagerSelect.options.length !== n) {
+        pagerSelect.innerHTML = Array.from({length: n},
+          (_, i) => `<option value="${i}">${i + 1}</option>`).join('');
+      }
+      pagerSelect.value = c.page;
+      $('pager-total').textContent = `of ${n}`;
+    }
+    pagerBtns.forEach((btn, i) => btn.addEventListener('click', () => {
+      activeChart().setPage(activeChart().page + (i ? 1 : -1));
+      refreshPager();
+    }));
+    pagerSelect.addEventListener('change', () => {
+      activeChart().setPage(+pagerSelect.value);
+      refreshPager();
+    });
+
     wireTabs('#chart-tabs .tab', '.chart-pane',
-      btn => charts[btn.dataset.pane].resize());
+      btn => { charts[btn.dataset.pane].resize(); refreshPager(); });
 
     const SCOPE_DATA = {
       all: {'chart-rocket': STATS.by_rocket,
             'chart-manufacturer': STATS.by_manufacturer},
-      prev: {'chart-rocket': STATS.by_rocket_prev_year,
-             'chart-manufacturer': STATS.by_manufacturer_prev_year},
-      year: {'chart-rocket': STATS.by_rocket_year,
-             'chart-manufacturer': STATS.by_manufacturer_year},
+      ...Object.fromEntries(Object.entries(STATS.yearly).map(([year, d]) =>
+        [year, {'chart-rocket': d.rockets,
+                'chart-manufacturer': d.manufacturers}])),
     };
     const scopeBtns = [...document.querySelectorAll('#chart-scope .seg-btn')];
     scopeBtns.forEach(btn => btn.addEventListener('click', () => {
       scopeBtns.forEach(b => b.classList.toggle('active', b === btn));
       for (const pane in charts) {
-        charts[pane].updateData(SCOPE_DATA[btn.dataset.scope][pane]);
+        charts[pane].setData(SCOPE_DATA[btn.dataset.scope][pane]);
       }
+      refreshPager();
     }));
-    if (!STATS.year_label) $('chart-scope').hidden = true;
-    else if (!Object.keys(SCOPE_DATA.prev['chart-rocket']).length) {
-      scopeBtns.find(b => b.dataset.scope === 'prev').remove();
-    }
+    if (!Object.keys(STATS.yearly).length) $('chart-scope').hidden = true;
+    refreshPager();
   </script>
 </body>
 </html>

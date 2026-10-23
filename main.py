@@ -273,15 +273,13 @@ def compute_stats(rockets, previous):
             by_manufacturer[label] += r["launches"]
             manufacturer_names[label] = r["manufacturer"]
 
-    # Anchor the year labels to the latest orbital launch so a stray
-    # suborbital flight at a year boundary can't shift the charts.
-    year = next(((l.get("net") or "")[:4] for l in previous
-                 if l.get("orbital_launch_attempt_count") is not None), "")
-    prev_year = str(int(year) - 1) if year else ""
+    # Results are fetched newest-first and cut off mid-year at the page
+    # cap, so the oldest year in the set is complete only when the API
+    # ran out of launches before the cap was hit.
     per_year = defaultdict(lambda: [Counter(), Counter()])
     for launch in previous:
         launch_year = (launch.get("net") or "")[:4]
-        if launch_year not in (year, prev_year):
+        if not launch_year:
             continue
         rocket_counts, mfr_counts = per_year[launch_year]
         config = pick(launch.get("rocket"), "configuration") or {}
@@ -293,8 +291,9 @@ def compute_stats(rockets, previous):
             mfr_counts[label] += 1
             manufacturer_names[label] = manufacturer["name"]
 
-    by_rocket_year, by_manufacturer_year = per_year[year]
-    by_rocket_prev, by_manufacturer_prev = per_year[prev_year]
+    years = sorted(per_year, reverse=True)
+    if len(previous) >= PAST_LAUNCH_PAGES * PAGE_SIZE:
+        years = years[:-1]
     top = lambda c: dict(c.most_common())
     return {
         "rocket_count": len(rockets),
@@ -302,14 +301,13 @@ def compute_stats(rockets, previous):
         "successful": sum(r.get("successful") or 0 for r in rockets.values()),
         "by_rocket": dict(sorted(by_rocket.items(), key=lambda kv: kv[1],
                                  reverse=True)),
-        "by_rocket_year": top(by_rocket_year),
-        "by_rocket_prev_year": top(by_rocket_prev),
         "by_manufacturer": top(by_manufacturer),
-        "by_manufacturer_year": top(by_manufacturer_year),
-        "by_manufacturer_prev_year": top(by_manufacturer_prev),
+        "yearly": {
+            year: {"rockets": top(per_year[year][0]),
+                   "manufacturers": top(per_year[year][1])}
+            for year in years
+        },
         "manufacturer_names": manufacturer_names,
-        "year_label": year,
-        "prev_year_label": prev_year,
     }
 
 

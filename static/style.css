@@ -170,6 +170,32 @@ section h2 {
   border-radius: 0 7px 7px 0;
 }
 
+.seg-btn:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.pager {
+  margin-left: auto;
+}
+
+.pager-select {
+  background: var(--surface);
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding: 0 0.5rem;
+}
+
+.pager-total {
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  padding-left: 0.4rem;
+  padding-right: 0.5rem;
+}
+
 /* Tabs and filter */
 
 .tabs {
