@@ -22,7 +22,7 @@ otherwise, so repeated builds during development don't re-hit the
 rate-limited API. If a fetch fails, the script falls back to the stale
 cache rather than failing the build.
 The number of pages fetched per endpoint is set by `PAST_LAUNCH_PAGES`
-and `UPCOMING_LAUNCH_PAGES` at the top of `main.py` (100 launches per page).
+and `UPCOMING_LAUNCH_PAGES` at the top of `sitegen/config.py` (100 launches per page).
 
 Open `site/index.html` in a browser to preview.
 
@@ -35,7 +35,8 @@ skipped if a static file is missing.
 
 ## How it works
 
-- `main.py` fetches upcoming and previous launches, computes stats, and
+- `main.py` drives the `sitegen` package, which fetches upcoming and
+  previous launches, computes stats, and
   renders `templates/index.html` into `site/` — once as `index.html` and
   once as `rocket-analytics-offline.html`, a self-contained single-file
   build with all resources inlined.
