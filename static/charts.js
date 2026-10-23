@@ -114,6 +114,69 @@ function makeCountryFilter(sel, onChange, map) {
   return wrap;
 }
 
+// Checkbox popover of the def's `entities` used as a row filter — e.g.
+// restrict a launch-site chart to selected rockets. Unlike the entity
+// picker an empty selection is legal and filters nothing ("Rocket:
+// all"). Mutates sel (a Set) in place, then fires onChange. Reuses the
+// country picker's popover styles.
+function makeRocketFilter(sel, onChange, def) {
+  const list = def.entities();
+  const nameOf = new Map(list);
+  // Prune picks that aren't in this def's list (stale from another def).
+  const valid = new Set(list.map(([v]) => v));
+  [...sel].forEach(v => { if (!valid.has(v)) sel.delete(v); });
+  const wrap = document.createElement('div');
+  wrap.className = 'country-filter';
+  const btn = document.createElement('button');
+  btn.className = 'chart-pick';
+  btn.type = 'button';
+  const pop = document.createElement('div');
+  pop.className = 'country-pop';
+  pop.hidden = true;
+  const label = () => {
+    const names = [...sel].map(v => nameOf.get(v));
+    btn.textContent = !names.length ? 'Rocket: all'
+      : names.length <= 3 ? `Rocket: ${names.join(', ')}`
+      : `Rocket: ${names.length}`;
+    btn.title = btn.textContent;
+    wrap.classList.toggle('has-sel', names.length > 0);
+  };
+  const emit = () => { label(); onChange(); };
+  const head = document.createElement('div');
+  head.className = 'country-pop-head';
+  const clear = document.createElement('button');
+  clear.className = 'country-clear';
+  clear.type = 'button';
+  clear.textContent = 'Clear';
+  head.append('Rockets', clear);
+  pop.append(head);
+  const cbs = [];
+  for (const [v, name] of list) {
+    const row = document.createElement('label');
+    row.className = 'country-row';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = sel.has(v);
+    cb.addEventListener('change', () => {
+      cb.checked ? sel.add(v) : sel.delete(v);
+      emit();
+    });
+    row.append(cb, name);
+    pop.append(row);
+    cbs.push(cb);
+  }
+  clear.addEventListener('click', () => {
+    if (!sel.size) return;
+    sel.clear();
+    cbs.forEach(cb => { cb.checked = false; });
+    emit();
+  });
+  btn.addEventListener('click', () => { pop.hidden = !pop.hidden; });
+  label();
+  wrap.append(btn, pop);
+  return wrap;
+}
+
 // A click anywhere outside an open country picker closes it.
 document.addEventListener('click', e => {
   document.querySelectorAll('.country-pop:not([hidden])').forEach(p => {
@@ -146,11 +209,14 @@ const FILTER_BUILDERS = {
       slot.filters.year = 'all';
     return makeScopeSeg(slot.filters.year, year => {
       slot.filters.year = year;
+      applyScopeFilters(slot);
       reload();
     }, ALL_SCOPES);
   },
   country: (slot, reload) => makeCountryFilter(slot.filters.country,
     reload, CHART_DEFS[slot.defId].countryMap ?? ROCKET_COUNTRIES),
+  rocket: (slot, reload) => makeRocketFilter(slot.filters.rockets,
+    reload, CHART_DEFS[slot.defId]),
   // 'Successes only' — donut defs can't show the failed segment, so
   // this toggle swaps their dataset to success counts instead. Trends
   // share it for the same reason.
@@ -229,6 +295,21 @@ const FILTER_BUILDERS = {
     return wrap;
   },
 };
+
+// Some filters can't apply to the 'all' scope — e.g. a site's lifetime
+// totals have no rocket attribution — so defs list which non-year
+// filters remain via allScopeFilters; the rest hide while 'all' is
+// active. mountSlot tags each control with data-filter so this knows
+// which is which; the year seg itself always stays.
+function applyScopeFilters(slot) {
+  const def = CHART_DEFS[slot.defId];
+  [...slot.filtersEl.children].forEach(el => {
+    el.hidden = slot.filters.year === 'all' &&
+      !!def.allScopeFilters &&
+      el.dataset.filter !== 'year' &&
+      !def.allScopeFilters.includes(el.dataset.filter);
+  });
+}
 
 // Wire ‹ [n] of N › controls to a chart; returns a refresh that also
 // hides the pager when the data fits on one page. getChart is a function
@@ -318,15 +399,16 @@ const splitBtn = $('split-btn');
 let slots = [];
 
 // A slot's filter state: year scope, the country picker's
-// {codes, negate} selection, the boolean toggles, and the trend
-// entity multi-pick Set. cloneFilters deep-copies the Sets so a split
-// slot's toggles don't write into its sibling's state.
+// {codes, negate} selection, the boolean toggles, and two Sets — the
+// trend entity multi-pick and the site charts' rocket filter.
+// cloneFilters deep-copies the Sets so a split slot's toggles don't
+// write into its sibling's state.
 const freshFilters = year => ({year,
   country: {codes: new Set(), negate: false}, successOnly: false,
-  cumulative: false, entities: new Set()});
+  cumulative: false, entities: new Set(), rockets: new Set()});
 const cloneFilters = f => ({...f,
   country: {codes: new Set(f.country.codes), negate: f.country.negate},
-  entities: new Set(f.entities)});
+  entities: new Set(f.entities), rockets: new Set(f.rockets)});
 
 function slotPager(slot) {
   const wrap = slot.el.querySelector('.pager');
@@ -358,7 +440,12 @@ function mountSlot(slot) {
   slot.pane.classList.remove('donut-pane');
   slot.inst = def.mount(slot.pane);
   slot.filtersEl.replaceChildren(
-    ...def.filters.map(f => FILTER_BUILDERS[f](slot, () => reloadSlot(slot))));
+    ...def.filters.map(f => {
+      const ctrl = FILTER_BUILDERS[f](slot, () => reloadSlot(slot));
+      ctrl.dataset.filter = f;
+      return ctrl;
+    }));
+  applyScopeFilters(slot);
   slot.inst.setData(def.data(slot.filters));
   slot.refreshPager();
   syncAxes();

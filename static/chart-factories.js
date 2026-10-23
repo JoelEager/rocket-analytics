@@ -54,14 +54,17 @@ const rowTotal = v => (v && typeof v === 'object')
 
 // Segment keys a stacked row may carry, in stack order (failures always
 // on top). Yearly data uses orbital/suborbital/failed; 'all time' has
-// no lifetime orbit breakdown, so it stacks success/failed instead.
+// no lifetime orbit breakdown, so it stacks success/failed instead —
+// except launch-site totals, which are a single flat 'total' segment.
 const SEGMENTS = {
   success:    {label: 'Success',    color: '#4ade80'},
   orbital:    {label: 'Orbital',    color: '#6ea8fe'},
   suborbital: {label: 'Suborbital', color: '#a78bfa'},
   failed:     {label: 'Failed',     color: '#f87171'},
+  total:      {label: 'Total',      color: '#6ea8fe'},
 };
-const SEGMENT_ORDER = ['success', 'orbital', 'suborbital', 'failed'];
+const SEGMENT_ORDER = ['success', 'orbital', 'suborbital', 'failed',
+                       'total'];
 
 // Draws each bar's segment counts above its top segment (Chart.js has
 // no built-in data labels), comma-separated and colored to match the

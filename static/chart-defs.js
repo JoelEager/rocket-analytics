@@ -4,7 +4,8 @@
 // STATS from app.js and the factories/views from chart-factories.js;
 // load order is JS_FILES in sitegen/config.py.
 // Scope lookup shared by chart defs: 'all' reads the lifetime stats key,
-// a year reads that year's bucket (missing keys -> empty chart).
+// a year reads that year's bucket (missing keys -> empty chart; site
+// charts have no 'all' dataset at all).
 const scopedData = (allKey, yearKey) => year =>
   year === 'all' ? STATS[allKey] ?? {} : STATS.yearly[year]?.[yearKey] ?? {};
 
@@ -16,7 +17,7 @@ const MFR_COUNTRIES = STATS.manufacturer_countries || {};
 // Restrict a {name: counts} dataset to labels whose country is (or, when
 // negated, is not) among the selected codes. An empty selection filters
 // nothing. map resolves each label to a code — rockets by name,
-// manufacturers by abbrev.
+// manufacturers by abbrev, sites by short name.
 const applyCountryFilter = (data, sel, map = ROCKET_COUNTRIES) => {
   if (!sel || !sel.codes.size) return data;
   return Object.fromEntries(Object.entries(data)
@@ -56,6 +57,31 @@ const trendData = groupKey => s => {
 const entityOptions = pairs =>
   pairs.sort((a, b) => a[1].localeCompare(b[1]));
 
+// Chartable rockets, alphabetized — the rocket trend's entity popover
+// and the site charts' 'rocket' filter share one pick list.
+const rocketEntities = () =>
+  entityOptions(Object.keys(STATS.by_rocket).map(k => [k, k]));
+
+// The API's lifetime site counts are flat numbers — wrap each as a
+// single 'total' segment so the stacked-bar machinery accepts them;
+// the donut slices them flat.
+const siteTotalRows = () => Object.fromEntries(
+  Object.entries(STATS.site_totals || {})
+    .map(([site, n]) => [site, {total: n}]));
+
+// Site rows are nested {site: {rocket: cats}} so a rocket selection can
+// re-aggregate them; an empty selection sums every rocket. Sites left
+// with no launches drop out so they don't draw zero-height bars.
+const siteRows = (rows, sel) => Object.fromEntries(
+  Object.entries(rows).map(([site, perRocket]) => {
+    const cats = {};
+    for (const name of sel.size ? sel : Object.keys(perRocket)) {
+      for (const [cat, n] of Object.entries(perRocket[name] || {}))
+        cats[cat] = (cats[cat] || 0) + n;
+    }
+    return [site, cats];
+  }).filter(([, cats]) => rowTotal(cats) > 0));
+
 // Registry of every chart the UI can show. `inline` charts also get a tab
 // in the main-page box; the rest appear only in the explorer modal's
 // pickers. `kind` groups the picker's options under an optgroup heading.
@@ -64,11 +90,15 @@ const entityOptions = pairs =>
 // maps a filter-state object {year, country, successOnly, cumulative,
 // entities} to its dataset, and mounts a chart object inside a
 // .chart-pane — the pager shows only when the instance's pageCount()
-// exceeds 1. Optional def fields: `countryMap` picks the label->code
-// map the country filter lists, and `rowMax` overrides rowTotal when a
-// def's data rows need a different syncAxes bound. Trend defs also
-// provide `entities` + `defaultEntity` for the entity popover —
-// [value, label] pairs plus the most-launched pick.
+// exceeds 1. Optional def fields: `allScopeFilters` lists which
+// non-year filters stay visible in the 'all' scope (site lifetime
+// totals can't be split by rocket or success, so site defs pass []),
+// `countryMap` picks the label->code map the country filter lists, and
+// `rowMax` overrides rowTotal when a def's data rows need a different
+// syncAxes bound. Defs can also provide `entities` — [value, label]
+// pairs feeding the 'entity' popover (trends) or the 'rocket' filter
+// (site charts) — and `defaultEntity`, the trend picker's most-
+// launched fallback.
 const CHART_DEFS = {
   'by-rocket': {
     label: 'By rocket',
@@ -102,6 +132,21 @@ const CHART_DEFS = {
     data: s => scopedData('by_country', 'countries')(s.year),
     mount: pane => stackedBarChart(pane.querySelector('canvas'), STATS.country_names),
   },
+  // 'all' for sites is the API's true lifetime total per site — a flat
+  // count with no category or rocket breakdown, so the rocket filter
+  // hides in that scope. Year scopes keep the stacked split and the
+  // 'rocket' filter ("which rockets fly from here").
+  'by-site': {
+    label: 'By launch site',
+    kind: 'Bars',
+    allScopeFilters: [],
+    filters: ['year', 'rocket'],
+    unit: 'launches',
+    entities: rocketEntities,
+    data: s => s.year === 'all' ? siteTotalRows()
+      : siteRows(scopedData('by_site', 'sites')(s.year), s.rockets),
+    mount: pane => stackedBarChart(pane.querySelector('canvas'), STATS.site_names),
+  },
   'by-rocket-donut': {
     label: 'By rocket',
     kind: 'Donut',
@@ -129,6 +174,18 @@ const CHART_DEFS = {
       scopedData('by_country', 'countries')(s.year), s.successOnly),
     mount: pane => donutChart(pane, STATS.country_names, 'Country'),
   },
+  'by-site-donut': {
+    label: 'By launch site',
+    kind: 'Donut',
+    allScopeFilters: [],
+    filters: ['year', 'rocket', 'success'],
+    entities: rocketEntities,
+    data: s => s.year === 'all' ? (STATS.site_totals || {})
+      : donutSlices(
+          siteRows(scopedData('by_site', 'sites')(s.year), s.rockets),
+          s.successOnly),
+    mount: pane => donutChart(pane, STATS.site_names, 'Site'),
+  },
   'by-rocket-trend': {
     label: 'By rocket',
     kind: 'Trend',
@@ -137,8 +194,7 @@ const CHART_DEFS = {
     // {entity: {year: count}} rows bound the shared axis on the largest
     // single point, not a row total.
     rowMax: series => Math.max(0, ...Object.values(series)),
-    entities: () =>
-      entityOptions(Object.keys(STATS.by_rocket).map(k => [k, k])),
+    entities: rocketEntities,
     defaultEntity: Object.keys(STATS.by_rocket)[0],
     data: trendData('rockets'),
     mount: pane => lineChart(pane.querySelector('canvas')),

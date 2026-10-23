@@ -533,6 +533,12 @@ tbody tr:hover {
   gap: 0.5rem;
 }
 
+/* applyScopeFilters hides controls via the hidden attr, but controls
+   with their own display rule (e.g. .success-toggle) would defeat it. */
+.slot-filters > [hidden] {
+  display: none;
+}
+
 /* Country filter: button summarizes the live selection and opens a
    checkbox popover below the slot head. */
 

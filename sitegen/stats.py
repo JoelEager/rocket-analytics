@@ -54,6 +54,12 @@ def top_cat(cats):
     return dict(sorted(cats.items(), key=lambda kv: -sum(kv[1].values())))
 
 
+def top_nested(cats):
+    """{name: {inner: cat dict}} -> same shape ordered by grand total."""
+    return dict(sorted(cats.items(), key=lambda kv:
+        -sum(sum(inner.values()) for inner in kv[1].values())))
+
+
 def compute_stats(rockets, previous):
     """Compute summary analytics from the deduplicated rocket set.
 
@@ -65,16 +71,26 @@ def compute_stats(rockets, previous):
     # for the charts' country filters.
     rocket_countries = {}
     manufacturer_countries = {}
+    # Launch-site short name -> its country code, full location name, and
+    # the API's lifetime launch count. Air/sea "locations" ('Air launch
+    # to orbit', 'Sea Launch') carry the API's '???' code — legitimate
+    # here since they record real launches.
+    site_countries = {}
+    site_names = {}
+    site_totals = {}
     # Tally fetched launches per calendar year. Each year gets a
     # name -> category dict per chart grouping: rockets, manufacturers,
-    # and countries.
-    per_year = defaultdict(lambda: [defaultdict(new_cat), defaultdict(new_cat), defaultdict(new_cat)])
+    # countries, and launch sites. Sites are nested one level deeper —
+    # {site: {rocket: cats}} — so the front end can filter a site's
+    # launches by which rocket flew them.
+    per_year = defaultdict(lambda: [defaultdict(new_cat), defaultdict(new_cat), defaultdict(new_cat),
+                                    defaultdict(lambda: defaultdict(new_cat))])
     for launch in previous:
         launch_year = (launch.get("net") or "")[:4]
         if not launch_year:
             continue
         cat = launch_category(launch)
-        rocket_counts, mfr_counts, country_counts = per_year[launch_year]
+        rocket_counts, mfr_counts, country_counts, site_counts = per_year[launch_year]
         config = pick(launch.get("rocket"), "configuration") or {}
         name = config.get("full_name") or config.get("name")
         if name:
@@ -86,6 +102,21 @@ def compute_stats(rockets, previous):
             manufacturer_names[label] = manufacturer["name"]
         if country := manufacturer.get("country_code"):
             country_counts[country][cat] += 1
+        # Site charts group by pad location ("Cape Canaveral SFS, FL, USA"
+        # -> "Cape Canaveral SFS"), not individual pads. Short names are
+        # unique in the data today; a future collision would merge two
+        # sites' counts under one label. The tally is gated on `name` so
+        # the site grouping can't out-count the rocket grouping.
+        location = pick(launch.get("pad"), "location") or {}
+        if location.get("name"):
+            site = location["name"].split(",")[0].strip()
+            site_names[site] = location["name"]
+            if location.get("country_code"):
+                site_countries[site] = location["country_code"]
+            if location.get("total_launch_count"):
+                site_totals[site] = location["total_launch_count"]
+            if name:
+                site_counts[site][name][cat] += 1
 
     # Lifetime success/failure pools per grouping. The API has no
     # lifetime orbital/suborbital breakdown, so 'all time' stacks as
@@ -133,14 +164,15 @@ def compute_stats(rockets, previous):
     # included so the country filter can name codes like '???' (Unknown)
     # that belong to rockets with no recorded launches.
     country_codes = (set(country_pool) | set(rocket_countries.values()) |
-                     {c for _, _, counts in per_year.values() for c in counts})
+                     {c for _, _, counts, _ in per_year.values() for c in counts})
 
     yearly = {}
     for year in years:
-        rocket_c, mfr_c, country_c = per_year[year]
+        rocket_c, mfr_c, country_c, site_c = per_year[year]
         yearly[year] = {"rockets": top_cat(rocket_c),
                         "manufacturers": top_cat(mfr_c),
-                        "countries": top_cat(country_c)}
+                        "countries": top_cat(country_c),
+                        "sites": top_nested(site_c)}
 
     return {
         "rocket_count": len(rockets),
@@ -154,4 +186,11 @@ def compute_stats(rockets, previous):
         "country_names": {code: country_name(code) for code in country_codes},
         "rocket_countries": rocket_countries,
         "manufacturer_countries": manufacturer_countries,
+        # site_totals is the API's true lifetime count per site — the
+        # site charts' 'all' scope. It's a flat number with no success/
+        # failure or rocket breakdown, unlike the per-year tallies.
+        "site_totals": dict(sorted(site_totals.items(),
+                                   key=lambda kv: -kv[1])),
+        "site_countries": site_countries,
+        "site_names": site_names,
     }
