@@ -11,7 +11,7 @@ API_BASE = "https://ll.thespacedevs.com/2.2.0"
 SITE_DIR = Path("site")
 TEMPLATES_DIR = Path("templates")
 STATIC_DIR = Path("static")
-LAUNCH_CACHE_FILE = Path("launch_cache.json")
+LAUNCH_CACHE_FILE = Path("launch-cache.json")
 
 # Alternate output: a portable offline single-file build with all
 # resources inlined.

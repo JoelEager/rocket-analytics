@@ -58,7 +58,7 @@
 
 - Install deps with `pip install -r requirements.txt`, then run
   `python main.py` to smoke-test the build. A plain run reuses
-  `launch_cache.json` and never hits the API, so it's safe to run
+  `launch-cache.json` and never hits the API, so it's safe to run
   repeatedly; `--refresh` forces a fresh fetch.
 - `site/` is generated output and gitignored — never commit it.
 - `node --check` each edited `static/*.js` file after front-end edits
@@ -69,4 +69,4 @@
   url|size|quality and prunes entries the current build doesn't
   reference; delete it to force a refetch. It's gitignored locally and
   persisted between CI runs via `actions/cache` alongside
-  `launch_cache.json`.
+  `launch-cache.json`.

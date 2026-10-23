@@ -15,7 +15,7 @@ python main.py --refresh          # ignore the API response cache
 python main.py --max-cache-age 5  # refetch if the cache is over 5 hours old
 ```
 
-Fetched launch data is cached in `launch_cache.json` (git ignored) and reused regardless of age unless `--refresh` or
+Fetched launch data is cached in `launch-cache.json` (git ignored) and reused regardless of age unless `--refresh` or
 `--max-cache-age` says otherwise, so repeated builds during development don't re-hit the rate-limited API. If a fetch
 fails, the script falls back to the stale cache rather than failing the build. The number of pages fetched per endpoint
 is set by `PAST_LAUNCH_PAGES` and `UPCOMING_LAUNCH_PAGES` at the top of `sitegen/config.py` (100 launches per page).
@@ -38,7 +38,7 @@ as `static/chart-library.min.js` and used by both versions of the site; the offl
 - `static/` is copied to `site/static/`.
 - The GitHub Actions workflow in `.github/workflows/deploy.yml` rebuilds and deploys the site in a single job on every
   push to `master`, every 6 hours on a schedule, and on manual dispatch.
-- The workflow runs `main.py --max-cache-age 5` and persists `launch_cache.json` and `image-cache/` between runs via
+- The workflow runs `main.py --max-cache-age 5` and persists `launch-cache.json` and `image-cache/` between runs via
   `actions/cache` (one `data-cache-` entry), so push-triggered rebuilds within 5 hours of the last fetch skip the API
   entirely while the 6-hourly schedule always refreshes.
 - Workflow runs share a `pages` concurrency group: pushes cancel any in-progress run so the newest commit deploys
@@ -51,7 +51,7 @@ The pipeline is one module per step; data flows roughly like this:
 ```
 LL2 API ──fetch──> launch dicts ──curate──> details + entities + stats
                       │                              │
-                      └──> launch_cache.json         └──> Jinja context
+                      └──> launch-cache.json         └──> Jinja context
                                                               │
                                             templates/index.html + static/
                                                               │
@@ -64,7 +64,7 @@ LL2 API ──fetch──> launch dicts ──curate──> details + entities +
   Start here to change how much data is fetched or where things live.
 - `sitegen/api.py` — paginated requests to the Launch Library 2 API with retries. The API returns 100 launches per
   page plus a `next` link.
-- `sitegen/launch_cache.py` — reads/writes `launch_cache.json` so development builds don't re-hit the rate-limited
+- `sitegen/launch_cache.py` — reads/writes `launch-cache.json` so development builds don't re-hit the rate-limited
   API.
 - `sitegen/details.py` — selects which API fields the site actually uses. The API returns very large launch objects;
   the `*_FIELDS` specs and `pick`/`pull` helpers copy just the needed fields into flat dicts.

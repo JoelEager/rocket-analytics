@@ -32,7 +32,7 @@ jobs:
       - uses: actions/cache@v6
         with:
           path: |
-            launch_cache.json
+            launch-cache.json
             image-cache/
           key: data-cache-${{ github.run_id }}
           restore-keys: data-cache-
