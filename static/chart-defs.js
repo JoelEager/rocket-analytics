@@ -82,18 +82,36 @@ const siteRows = (rows, sel) => Object.fromEntries(
     return [site, cats];
   }).filter(([, cats]) => rowTotal(cats) > 0));
 
+// Family rows are nested {family: {rocket: cats}} like site rows so the
+// 'variant' toggle can swap the stack: off, each family's rockets sum
+// into the usual orbital/suborbital/failed split; on, each rocket
+// becomes its own stack segment — the full config name stands in for
+// the variant since the API's bare variant token isn't unique.
+const familyRows = (rows, byVariant) => Object.fromEntries(
+  Object.entries(rows).map(([fam, perRocket]) => {
+    const out = {};
+    for (const [variant, cats] of Object.entries(perRocket)) {
+      if (byVariant) out[variant] = (out[variant] || 0) + rowTotal(cats);
+      else for (const [cat, n] of Object.entries(cats))
+        out[cat] = (out[cat] || 0) + n;
+    }
+    return [fam, out];
+  }));
+
 // Registry of every chart the UI can show. `inline` charts also get a tab
 // in the main-page box; the rest appear only in the explorer modal's
 // pickers. `kind` groups the picker's options under an optgroup heading.
 // Each def lists the filters it supports (each name renders a
 // control in the modal slot — the inline box only ever shows 'year'),
 // maps a filter-state object {year, country, successOnly, cumulative,
-// entities} to its dataset, and mounts a chart object inside a
+// variantStack, entities} to its dataset, and mounts a chart object inside a
 // .chart-pane — the pager shows only when the instance's pageCount()
 // exceeds 1. Optional def fields: `allScopeFilters` lists which
 // non-year filters stay visible in the 'all' scope (site lifetime
 // totals can't be split by rocket or success, so site defs pass []),
-// `countryMap` picks the label->code map the country filter lists, and
+// `yearsOnly` drops the 'all' scope entirely (defs without a lifetime
+// dataset), `countryMap` picks the label->code map the country filter
+// lists, and
 // `rowMax` overrides rowTotal when a def's data rows need a different
 // syncAxes bound. Defs can also provide `entities` — [value, label]
 // pairs feeding the 'entity' popover (trends) or the 'rocket' filter
@@ -109,6 +127,16 @@ const CHART_DEFS = {
     unit: 'launches',
     data: s => applyCountryFilter(
       scopedData('by_rocket', 'rockets')(s.year), s.country),
+    mount: pane => stackedBarChart(pane.querySelector('canvas')),
+  },
+  'by-rocket-family': {
+    label: 'By rocket family',
+    kind: 'Bars',
+    yearsOnly: true,
+    filters: ['year', 'variant'],
+    unit: 'launches',
+    data: s => familyRows(
+      scopedData('by_family', 'families')(s.year), s.variantStack),
     mount: pane => stackedBarChart(pane.querySelector('canvas')),
   },
   'by-manufacturer': {

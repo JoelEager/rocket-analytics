@@ -82,8 +82,13 @@ const stackTotals = {
     ctx.textAlign = 'left';
     const sepW = ctx.measureText(', ').width;
     meta.data.forEach((bar, i) => {
+      // Empty segments are skipped — in the family chart's variant
+      // stacking a bar uses only a few of the datasets, so printing
+      // zeros would produce a long unreadable list.
       const parts = chart.data.datasets.map(ds =>
-        ({v: ds.data[i] || 0, color: ds.backgroundColor}));
+        ({v: ds.data[i] || 0, color: ds.backgroundColor}))
+        .filter(p => p.v > 0);
+      if (!parts.length) return;
       const widths = parts.map(p => ctx.measureText(String(p.v)).width);
       const totalW = widths.reduce((a, b) => a + b, sepW * (parts.length - 1));
       if (bar.width + 8 < totalW) return;
@@ -118,6 +123,9 @@ function stackedBarChart(canvas, fullNames) {
         legend: {position: 'bottom'},
         tooltip: {
           ...names,
+          // A bar only uses a few of the variant datasets; dropping
+          // zero-value items keeps the tooltip to its real segments.
+          filter: item => item.parsed.y > 0,
           callbacks: {
             ...names.callbacks,
             footer: items => 'Total: ' + items.reduce((s, i) => s + i.parsed.y, 0),
@@ -127,22 +135,40 @@ function stackedBarChart(canvas, fullNames) {
     },
     plugins: [stackTotals],
   });
-  let keys = [];
+  let keys = [], dynamic = false;
   const view = pagedView(chart, entries => {
     chart.data.datasets.forEach((ds, i) => {
       ds.data = entries.map(([, v]) => v[keys[i]] || 0);
     });
   });
   const setData = view.setData;
-  // Rebuild the dataset list from whichever segment keys this dataset
-  // contains, so the legend only names what the rows actually show.
+  // Rebuild the dataset list from whichever keys the rows carry, so
+  // the legend only names what's actually shown. Rows keyed by
+  // SEGMENT_ORDER (launch categories) get their fixed labels and
+  // colors; any other key set — the family chart's variant stacking —
+  // gets one palette-colored dataset each, ordered by total so the
+  // biggest variants anchor the stack.
   view.setData = d => {
     const present = new Set(Object.values(d).flatMap(Object.keys));
     keys = SEGMENT_ORDER.filter(k => present.has(k));
-    chart.data.datasets = keys.map(k => ({
-      label: SEGMENTS[k].label,
+    dynamic = !keys.length && present.size > 0;
+    // Variant stacking has a dataset per variant (100+) — too many for
+    // a useful legend, so it hides; filtered tooltips and the colored
+    // segment counts name what each bar actually contains.
+    chart.options.plugins.legend.display = !dynamic;
+    if (dynamic) {
+      const totals = {};
+      for (const row of Object.values(d))
+        for (const [k, n] of Object.entries(row))
+          totals[k] = (totals[k] || 0) + n;
+      keys = Object.keys(totals)
+        .sort((a, b) => totals[b] - totals[a] || a.localeCompare(b));
+    }
+    chart.data.datasets = keys.map((k, i) => ({
+      label: SEGMENTS[k]?.label || k,
       data: [],
-      backgroundColor: SEGMENTS[k].color,
+      backgroundColor: SEGMENTS[k]?.color ||
+        LINE_COLORS[i % LINE_COLORS.length],
     }));
     setData(d);
   };

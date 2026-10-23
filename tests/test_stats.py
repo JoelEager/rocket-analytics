@@ -33,11 +33,12 @@ class ComputeStatsTest(unittest.TestCase):
                 self.assertLessEqual(set(cats), {"success", "failed"}, key)
 
     def test_yearly_rows_are_orbital_suborbital_failed(self):
-        # 'sites' is nested {site: {rocket: cats}}; the rest are flat.
+        # 'sites' and 'families' are nested {label: {rocket: cats}};
+        # the rest are flat.
         for bucket in self.stats["yearly"].values():
             for group, rows in bucket.items():
                 leaves = (cats for row in rows.values()
-                          for cats in (row.values() if group == "sites"
+                          for cats in (row.values() if group in ("sites", "families")
                                        else (row,)))
                 for cats in leaves:
                     self.assertLessEqual(
@@ -79,6 +80,14 @@ class ComputeStatsTest(unittest.TestCase):
         charted = set(self.stats["by_rocket"])
         for bucket in self.stats["yearly"].values():
             for per_rocket in bucket["sites"].values():
+                self.assertLessEqual(set(per_rocket), charted)
+
+    def test_family_variants_are_chart_rows(self):
+        # The family tally gates on the same rocket name as the sites
+        # grouping, so every variant segment is a charted rocket.
+        charted = set(self.stats["by_rocket"])
+        for bucket in self.stats["yearly"].values():
+            for per_rocket in bucket["families"].values():
                 self.assertLessEqual(set(per_rocket), charted)
 
     def test_total_matches_by_rocket_rows(self):

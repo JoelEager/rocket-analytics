@@ -231,14 +231,18 @@ const makeToggle = (text, key) => (slot, reload) => {
 // returns a control that updates the slot's filter state on change.
 const FILTER_BUILDERS = {
   year: (slot, reload) => {
-    // A stale scope (a year that isn't in the data) resets to 'all'.
-    if (!ALL_SCOPES.includes(slot.filters.year))
-      slot.filters.year = 'all';
+    // yearsOnly defs offer no 'all' scope (no lifetime dataset). A
+    // stale scope — a year that isn't in the data or 'all' on a
+    // yearsOnly def — resets to the first offered scope.
+    const scopes = CHART_DEFS[slot.defId].yearsOnly
+      ? ALL_SCOPES.slice(1) : ALL_SCOPES;
+    if (!scopes.includes(slot.filters.year))
+      slot.filters.year = scopes[0];
     return makeScopeSeg(slot.filters.year, year => {
       slot.filters.year = year;
       applyScopeFilters(slot);
       reload();
-    }, ALL_SCOPES);
+    }, scopes);
   },
   country: (slot, reload) => makeCountryFilter(slot.filters.country,
     reload, CHART_DEFS[slot.defId].countryMap ?? ROCKET_COUNTRIES),
@@ -250,6 +254,9 @@ const FILTER_BUILDERS = {
   success: makeToggle('Successes only', 'successOnly'),
   // 'Cumulative' turns a trend's per-year counts into a running total.
   cumulative: makeToggle('Cumulative', 'cumulative'),
+  // 'By variant' swaps the rocket-family chart's stacking: each segment
+  // is a rocket variant instead of a launch category.
+  variant: makeToggle('By variant', 'variantStack'),
   // Multi-select entity picker for trend charts: a button opens a
   // checkbox popover (reuses the country picker's styles), one line
   // per entity. filters.entities is a Set that can never empty — the
@@ -436,7 +443,8 @@ let slots = [];
 // write into its sibling's state.
 const freshFilters = year => ({year,
   country: {codes: new Set(), negate: false}, successOnly: false,
-  cumulative: false, entities: new Set(), rockets: new Set()});
+  cumulative: false, variantStack: false, entities: new Set(),
+  rockets: new Set()});
 const cloneFilters = f => ({...f,
   country: {codes: new Set(f.country.codes), negate: f.country.negate},
   entities: new Set(f.entities), rockets: new Set(f.rockets)});

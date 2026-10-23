@@ -84,21 +84,30 @@ def compute_stats(rockets, previous):
     site_totals = {}
     # Tally fetched launches per calendar year. Each year gets a
     # name -> category dict per chart grouping: rockets, manufacturers,
-    # countries, and launch sites. Sites are nested one level deeper —
-    # {site: {rocket: cats}} — so the front end can filter a site's
-    # launches by which rocket flew them.
+    # countries, launch sites, and rocket families. Sites and families
+    # nest one level deeper — {site: {rocket: cats}} so the front end
+    # can filter a site's launches by which rocket flew them, and
+    # {family: {rocket: cats}} so the family chart can stack by
+    # variant instead of by category.
     per_year = defaultdict(lambda: [defaultdict(new_cat), defaultdict(new_cat), defaultdict(new_cat),
+                                    defaultdict(lambda: defaultdict(new_cat)),
                                     defaultdict(lambda: defaultdict(new_cat))])
     for launch in previous:
         launch_year = (launch.get("net") or "")[:4]
         if not launch_year:
             continue
         cat = launch_category(launch)
-        rocket_counts, mfr_counts, country_counts, site_counts = per_year[launch_year]
+        rocket_counts, mfr_counts, country_counts, site_counts, fam_counts = per_year[launch_year]
         config = pick(launch.get("rocket"), "configuration") or {}
         name = config.get("full_name") or config.get("name")
         if name:
             rocket_counts[name][cat] += 1
+            # Configs with no family group under their own name; the
+            # segment key is the full config name because the API's bare
+            # variant token merges distinct rockets ('A' spans several
+            # Long Marches). Gated on name like sites, so family totals
+            # can't out-count the rocket grouping.
+            fam_counts[config.get("family") or name][name][cat] += 1
         manufacturer = config.get("manufacturer") or {}
         if manufacturer.get("name"):
             label = manufacturer.get("abbrev") or manufacturer["name"]
@@ -168,15 +177,16 @@ def compute_stats(rockets, previous):
     # included so the country filter can name codes like '???' (Unknown)
     # that belong to rockets with no recorded launches.
     country_codes = (set(country_pool) | set(rocket_countries.values()) |
-                     {c for _, _, counts, _ in per_year.values() for c in counts})
+                     {c for _, _, counts, _, _ in per_year.values() for c in counts})
 
     yearly = {}
     for year in years:
-        rocket_c, mfr_c, country_c, site_c = per_year[year]
+        rocket_c, mfr_c, country_c, site_c, fam_c = per_year[year]
         yearly[year] = {"rockets": top_cat(rocket_c),
                         "manufacturers": top_cat(mfr_c),
                         "countries": top_cat(country_c),
-                        "sites": top_nested(site_c)}
+                        "sites": top_nested(site_c),
+                        "families": top_nested(fam_c)}
 
     return {
         "rocket_count": len(rockets),

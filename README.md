@@ -68,9 +68,10 @@ LL2 API ──fetch──> launch dicts ──curate──> details + entities +
   API.
 - `pipeline/details.py` — selects which API fields the site actually uses. The API returns very large launch objects;
   the `*_FIELDS` specs and `pick`/`pull` helpers copy just the needed fields into flat dicts.
-- `pipeline/stats.py` — aggregates launch counts per rocket, per manufacturer, per country, and per year for the
-  charts. Yearly bars split into orbital, suborbital, and failed segments; the lifetime 'all time' bars split into
-  success and failed only, since the API has no lifetime orbit breakdown.
+- `pipeline/stats.py` — aggregates launch counts per rocket, per rocket family, per manufacturer, per country, and
+  per year for the charts. Yearly bars split into orbital, suborbital, and failed segments; the lifetime 'all time'
+  bars split into success and failed only, since the API has no lifetime orbit breakdown. The site and family
+  groupings also keep a nested per-rocket tally so the front end can re-slice them (rocket filter, variant stacking).
 - `pipeline/build.py` — collects shared entities (rockets, providers, pads, agencies), renders `templates/index.html`
   into `site/`, and hands off to the offline build.
 - `pipeline/offline_bundle.py` — the offline single-file build: downloads and downscales mission patch / rocket images
