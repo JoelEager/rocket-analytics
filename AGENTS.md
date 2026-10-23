@@ -38,9 +38,12 @@
 
 ## Front end
 
-- `static/app.js` holds all page behavior; `templates/index.html` is
-  markup, and shared Jinja macros (e.g. `modal()`) live in
-  `templates/macros.html`.
+- Page behavior is split across `static/app.js` (tables, filter, detail
+  modals) and `static/charts.js` (the CHART_DEFS registry, inline chart
+  box, and explorer modal). Both are classic scripts — not modules —
+  sharing top-level bindings; charts.js loads last per `JS_FILES` in
+  `sitegen/config.py`. `templates/index.html` is markup, and shared Jinja
+  macros (e.g. `modal()`) live in `templates/macros.html`.
 - Scripts must render at the END of `<body>`: app.js reads the `data-*`
   JSON blocks at parse time, so a `<script src>` in `<head>` crashes on
   a null element. This applies to both the linked and inlined variants.
@@ -55,7 +58,8 @@
   `launch_cache.json` and never hits the API, so it's safe to run
   repeatedly; `--refresh` forces a fresh fetch.
 - `site/` is generated output and gitignored — never commit it.
-- `node --check static/app.js` validates the JS after front-end edits.
+- `node --check static/app.js` and `node --check static/charts.js`
+  validate the JS after front-end edits.
 - After touching the offline build, sanity-check `data-images` in
   `site/rocket-analytics-offline.html` (it's `{}` in `index.html`).
 - `image-cache/` caches processed images by content of
