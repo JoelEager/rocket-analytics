@@ -27,6 +27,28 @@
   <p class="table-note">{{ note }}</p>
 </div>
 {%- endmacro %}
+{% macro rocket_table(rows, note, hidden=false) -%}
+<div class="table-wrap" id="tab-rockets"{% if hidden %} hidden{% endif %}>
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th><th>Provider</th><th class="sortable" data-sort="launch_mass">Launch mass</th><th class="sortable" data-sort="launches" data-dir="desc">Successful /<br>attempted</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for id, rocket in rows %}
+      <tr data-set="rockets" data-id="{{ id }}">
+        <td>{{ rocket.name or '—' }}</td>
+        <td>{{ rocket.manufacturer or '—' }}</td>
+        <td>{{ '{:,} t'.format(rocket.launch_mass) if rocket.launch_mass is not none else '—' }}</td>
+        <td>{{ (rocket.successful or 0) ~ ' / ' ~ rocket.launches if rocket.launches is not none else '—' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="table-note">{{ note }}</p>
+</div>
+{%- endmacro %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -93,11 +115,12 @@
     </section>
 
     <section>
-      <h2>Launch activity</h2>
+      <h2>Launches &amp; rockets</h2>
       <div class="tabs" id="launch-tabs">
-        <button class="tab active" data-pane="tab-upcoming">Upcoming</button>
-        <button class="tab" data-pane="tab-past">Previous</button>
-        <span class="tab-hint">Select a launch for details</span>
+        <button class="tab active" data-pane="tab-upcoming">Upcoming launches</button>
+        <button class="tab" data-pane="tab-past">Previous launches</button>
+        <button class="tab" data-pane="tab-rockets">Rockets</button>
+        <span class="tab-hint">Select a row for details</span>
         <div class="filter">
           <input id="filter" type="search" placeholder="Filter..." autocomplete="off">
           <span id="filter-count"></span>
@@ -106,6 +129,7 @@
 
       {{ launch_table('upcoming', upcoming, 'Showing the next ' ~ upcoming | length ~ ' launches') }}
       {{ launch_table('past', previous, 'Showing the last ' ~ previous | length ~ ' launches', with_status=true, hidden=true) }}
+      {{ rocket_table(rocket_rows, 'Showing ' ~ rocket_rows | length ~ ' rockets observed in the listed launches', hidden=true) }}
     </section>
     <div class="footer-note">
       Data from <a href="https://thespacedevs.com/llapi" target="_blank" rel="noopener">Launch Library</a> ·
@@ -137,6 +161,19 @@
       <div class="modal-pane" id="mtab-entities" hidden></div>
       <div class="modal-pane" id="mtab-updates" hidden></div>
       <div class="modal-pane" id="mtab-links" hidden></div>
+    </div>
+  </div>
+
+  <div id="rocket-modal" class="modal" hidden>
+    <div class="modal-card">
+      <button class="modal-close" id="rocket-modal-close" aria-label="Close">&times;</button>
+      <h2 id="rocket-modal-name"></h2>
+      <div class="modal-tabs">
+        <button class="tab active" data-pane="rtab-rocket">Rocket</button>
+        <button class="tab" data-pane="rtab-provider">Provider</button>
+      </div>
+      <div class="modal-pane" id="rtab-rocket"></div>
+      <div class="modal-pane" id="rtab-provider" hidden></div>
     </div>
   </div>
 
@@ -221,7 +258,7 @@
       ['Reusable', r => yesNo(r.reusable)],
       ['Length', r => num(r.length, 'm')],
       ['Diameter', r => num(r.diameter, 'm')],
-      ['Launch mass', r => num(r.launch_mass, 'kg')],
+      ['Launch mass', r => num(r.launch_mass, 't')],
       ['LEO capacity', r => num(r.leo_capacity, 'kg')],
       ['GTO capacity', r => num(r.gto_capacity, 'kg')],
       ['Thrust', r => num(r.thrust, 'kN')],
@@ -264,15 +301,19 @@
 
     const entityLinks = e => [['Info', e && e.info_url], ['Wiki', e && e.wiki_url]];
 
-    function entitySection(title, e, fieldDefs, links) {
+    function entityBody(e, fieldDefs, links) {
       if (!e || !e.name) return '';
       const linkHtml = links.filter(([, u]) => u)
         .map(([l, u]) => extLink(l, u)).join(' ');
-      return `<h3>${esc(title)}: ${esc(e.name)}</h3>`
-        + (e.image ? `<img class="modal-image" src="${esc(e.image)}" alt="">` : '')
+      return (e.image ? `<img class="modal-image" src="${esc(e.image)}" alt="">` : '')
         + `<dl class="modal-details">${fieldRows(e, fieldDefs)}</dl>`
         + (e.description ? `<p class="entity-desc">${esc(e.description)}</p>` : '')
         + (linkHtml ? `<p class="entity-links">${linkHtml}</p>` : '');
+    }
+
+    function entitySection(title, e, fieldDefs, links) {
+      const body = entityBody(e, fieldDefs, links);
+      return body ? `<h3>${esc(title)}: ${esc(e.name)}</h3>${body}` : '';
     }
 
     function renderEntities(d) {
@@ -355,9 +396,37 @@
     filterInput.addEventListener('input', applyFilter);
 
     const modal = $('modal');
+    const rocketModal = $('rocket-modal');
     const setImg = (img, url) => { img.hidden = !url; if (url) img.src = url; };
-    const resetModalTabs = wireTabs('.modal-tabs .tab', '.modal-pane');
+    const resetModalTabs = wireTabs('#modal .modal-tabs .tab', '#modal .modal-pane');
+    const resetRocketTabs = wireTabs('#rocket-modal .modal-tabs .tab',
+                                   '#rocket-modal .modal-pane');
     wireTabs('#launch-tabs .tab', '.table-wrap', applyFilter);
+
+    // Sortable rocket columns: data-sort names a rocket entity key.
+    // A new column starts descending; re-clicking flips direction.
+    const rocketTbody = document.querySelector('#tab-rockets tbody');
+    const rocketSortThs = document.querySelectorAll('#tab-rockets th.sortable');
+    let rocketSortKey = 'launches';
+    rocketSortThs.forEach(th => th.addEventListener('click', () => {
+      const key = th.dataset.sort;
+      const dir = key === rocketSortKey && th.dataset.dir === 'desc'
+        ? 'asc' : 'desc';
+      rocketSortKey = key;
+      rocketSortThs.forEach(t => delete t.dataset.dir);
+      th.dataset.dir = dir;
+      const mul = dir === 'desc' ? 1 : -1;
+      const val = tr => ENTITIES.rockets[tr.dataset.id]?.[key];
+      [...rocketTbody.querySelectorAll('tr')]
+        .sort((a, b) => {
+          const va = val(a), vb = val(b);
+          // Unknowns stay at the bottom in either direction.
+          if (va == null) return vb == null ? 0 : 1;
+          if (vb == null) return -1;
+          return mul * (vb - va);
+        })
+        .forEach(r => rocketTbody.appendChild(r));
+    }));
 
     function openModal(d) {
       $('modal-name').textContent = d.name;
@@ -377,23 +446,56 @@
       renderUpdates(d);
       renderLinks(d);
       resetModalTabs();
-      modal.hidden = false;
+      showModal(modal);
+    }
+
+    function openRocketModal(id) {
+      const rocket = ENTITIES.rockets[id];
+      if (!rocket) return;
+      $('rocket-modal-name').textContent = rocket.name || 'Rocket';
+      $('rtab-rocket').innerHTML =
+        entityBody(rocket, ROCKET_FIELDS, entityLinks(rocket))
+        || '<p class="muted">No details available.</p>';
+
+      let provider = ENTITIES.providers[rocket.manufacturer_id]
+        || ENTITIES.agencies[rocket.manufacturer_id];
+      // The provider logo is often the same asset as the rocket image.
+      if (provider && provider.image === rocket.image) {
+        provider = {...provider, image: null};
+      }
+      $('rtab-provider').innerHTML = provider
+        ? entityBody(provider, AGENCY_FIELDS, entityLinks(provider))
+        : (rocket.manufacturer
+            ? `<p class="entity-desc">${esc(rocket.manufacturer)}</p>`
+            : '<p class="muted">No details available.</p>');
+
+      resetRocketTabs();
+      showModal(rocketModal);
+    }
+
+    function showModal(m) {
+      m.hidden = false;
       document.body.style.overflow = 'hidden';
     }
 
-    function closeModal() {
-      modal.hidden = true;
+    function closeModal(m) {
+      m.hidden = true;
       document.body.style.overflow = '';
     }
 
     document.querySelector('main').addEventListener('click', e => {
       const tr = e.target.closest('tr[data-set]');
-      if (tr) openModal(LAUNCHES[tr.dataset.set][+tr.dataset.idx]);
+      if (!tr) return;
+      if (tr.dataset.set === 'rockets') openRocketModal(tr.dataset.id);
+      else openModal(LAUNCHES[tr.dataset.set][+tr.dataset.idx]);
     });
-    $('modal-close').addEventListener('click', closeModal);
-    modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+    [modal, rocketModal].forEach(m => {
+      m.querySelector('.modal-close')
+        .addEventListener('click', () => closeModal(m));
+      m.addEventListener('click', e => { if (e.target === m) closeModal(m); });
+    });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && !modal.hidden) closeModal();
+      if (e.key === 'Escape') [modal, rocketModal].forEach(closeModal);
     });
 
     Chart.defaults.color = '#9ca3af';

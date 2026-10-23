@@ -285,6 +285,23 @@ th {
   letter-spacing: 0.05em;
 }
 
+th.sortable {
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+th.sortable:hover {
+  color: var(--text);
+}
+
+th.sortable[data-dir="desc"]::after {
+  content: ' ▼';
+}
+
+th.sortable[data-dir="asc"]::after {
+  content: ' ▲';
+}
+
 tbody tr:hover {
   background: var(--surface);
 }
@@ -364,7 +381,8 @@ tbody tr:hover {
 }
 
 /* Keep long titles from running under the close button */
-#modal-name {
+#modal-name,
+#rocket-modal-name {
   padding-right: 2.5rem;
 }
 

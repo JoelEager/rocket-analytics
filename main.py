@@ -180,6 +180,7 @@ def rocket_detail(config):
         "name": config.get("full_name") or config.get("name"),
         "manufacturer": manufacturer.get("name"),
         "manufacturer_abbrev": manufacturer.get("abbrev"),
+        "manufacturer_id": manufacturer.get("id"),
         **pull(config, ROCKET_FIELDS),
     }
 
@@ -349,6 +350,12 @@ def build_site(upcoming, previous, data_updated):
         upcoming_detail=[launch_detail(launch) for launch in upcoming],
         previous_detail=[launch_detail(launch) for launch in previous],
         entities=entities,
+        rocket_rows=sorted(
+            entities["rockets"].items(),
+            key=lambda kv: (-(kv[1].get("launches") or 0),
+                            -(kv[1].get("launch_mass") or 0),
+                            kv[1].get("name") or ""),
+        ),
         stats=compute_stats(entities["rockets"], previous),
         data_updated=data_updated,
     )
