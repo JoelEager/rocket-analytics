@@ -30,6 +30,20 @@ function pagedView(chart, fill) {
   return {chart, get page() { return page; }, pageCount, setPage, setData};
 }
 
+// Non-paged charts share the same one-page contract so slot code treats
+// every instance alike (pager hides when pageCount() is 1); fill loads
+// the rows into the chart's datasets.
+function singleView(chart, fill) {
+  const setData = d => {
+    const entries = Object.entries(d);
+    chart.data.labels = entries.map(([k]) => k);
+    fill(entries);
+    chart.update();
+  };
+  return {chart, setData, get page() { return 0; },
+    pageCount: () => 1, setPage() {}};
+}
+
 // Chart labels are abbreviations; tooltips show the full name.
 const tooltipNames = fullNames => fullNames ? {callbacks: {
   title: items => fullNames[items[0].label] || items[0].label,
@@ -206,20 +220,19 @@ function donutChart(pane, fullNames, group) {
       },
     },
   });
-  const setData = d => {
-    const entries = Object.entries(d).filter(([, v]) => v > 0);
-    total = entries.reduce((s, [, v]) => s + v, 0);
-    const other = entries.slice(DONUT_TOP).reduce((s, [, v]) => s + v, 0);
+  return singleView(chart, entries => {
+    const positive = entries.filter(([, v]) => v > 0);
+    total = positive.reduce((s, [, v]) => s + v, 0);
+    const other = positive.slice(DONUT_TOP).reduce((s, [, v]) => s + v, 0);
     const slices = other
-      ? [...entries.slice(0, DONUT_TOP), ['Other', other]]
-      : entries.slice(0, DONUT_TOP);
+      ? [...positive.slice(0, DONUT_TOP), ['Other', other]]
+      : positive.slice(0, DONUT_TOP);
     chart.data.labels = slices.map(([k]) => k);
     chart.data.datasets[0].data = slices.map(([, v]) => v);
-    chart.update();
     tableWrap.innerHTML = total
       ? `<table class="donut-table"><thead>
            <tr><th>${esc(group)}</th><th>#</th><th>%</th></tr>
-         </thead><tbody>${entries.map(([k, v]) => `
+         </thead><tbody>${positive.map(([k, v]) => `
            <tr><td>${esc(fullNames?.[k] || k)}</td>
                <td>${v.toLocaleString()}</td>
                <td>${(v / total * 100).toFixed(1)}</td></tr>`).join('')}
@@ -228,11 +241,38 @@ function donutChart(pane, fullNames, group) {
                <td>100</td></tr>
          </tfoot></table>`
       : '<p class="donut-empty">No launches in this selection.</p>';
-  };
-  // A single "page" keeps the instance contract uniform — the slot
-  // pager reads pageCount() and hides itself when it returns 1.
-  return {chart, setData, get page() { return 0; },
-    pageCount: () => 1, setPage() {}};
+  });
+}
+
+// A single-series line over {x: count} rows — currently launches per
+// year for one entity. Area fill, whole-column hover like the bars.
+function lineChart(canvas) {
+  const chart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: [],
+      datasets: [{
+        label: 'Launches',
+        data: [],
+        borderColor: '#6ea8fe',
+        backgroundColor: 'rgba(110, 168, 254, 0.15)',
+        fill: true,
+        pointRadius: 3,
+        tension: 0.25,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      interaction: {mode: 'index', intersect: false},
+      scales: {
+        y: {beginAtZero: true, ticks: {precision: 0}},
+      },
+      plugins: {legend: {display: false}},
+    },
+  });
+  return singleView(chart, entries => {
+    chart.data.datasets[0].data = entries.map(([, v]) => v);
+  });
 }
 
 // Scope lookup shared by chart defs: 'all' reads the lifetime stats key,
@@ -262,14 +302,26 @@ const donutSlices = (rows, successOnly) => Object.fromEntries(
   Object.entries(rows).map(([k, row]) =>
     [k, successOnly ? rowTotal(row) - (row.failed || 0) : rowTotal(row)]));
 
+// Trend defs need a {year: count} series for one entity (a rocket name,
+// manufacturer abbrev, or country code): re-slice that group's yearly
+// bucket chronologically — yearly keys arrive newest-first.
+const trendData = groupKey => s => Object.fromEntries(
+  Object.keys(STATS.yearly).sort().map(year => {
+    const row = STATS.yearly[year][groupKey][s.entity];
+    const total = rowTotal(row) || 0;
+    return [year, s.successOnly ? total - (row?.failed || 0) : total];
+  }));
+
 // Registry of every chart the UI can show. `inline` charts also get a tab
 // in the main-page box; the rest appear only in the explorer modal's
 // pickers. `kind` prefixes the picker's option text ('Bars by rocket').
 // Each def lists the filters it supports (each name renders a
 // control in the modal slot — the inline box only ever shows 'year'),
-// maps a filter-state object {year, country, successOnly} to its
-// dataset, and mounts a chart object inside a .chart-pane — the pager
-// shows only when the instance's pageCount() exceeds 1.
+// maps a filter-state object {year, country, successOnly, entity} to
+// its dataset, and mounts a chart object inside a .chart-pane — the
+// pager shows only when the instance's pageCount() exceeds 1. Trend
+// defs also provide `entities` to populate the 'entity' filter's
+// dropdown as [value, label] pairs.
 const CHART_DEFS = {
   'by-rocket': {
     label: 'By rocket',
@@ -325,6 +377,35 @@ const CHART_DEFS = {
     data: s => donutSlices(
       scopedData('by_country', 'countries')(s.year), s.successOnly),
     mount: pane => donutChart(pane, STATS.country_names, 'Country'),
+  },
+  'by-rocket-trend': {
+    label: 'By rocket',
+    kind: 'Trend',
+    filters: ['entity', 'success'],
+    unit: 'launches',
+    entities: () => Object.keys(STATS.by_rocket).map(k => [k, k]),
+    data: trendData('rockets'),
+    mount: pane => lineChart(pane.querySelector('canvas')),
+  },
+  'by-manufacturer-trend': {
+    label: 'By manufacturer',
+    kind: 'Trend',
+    filters: ['entity', 'success'],
+    unit: 'launches',
+    entities: () => Object.keys(STATS.by_manufacturer)
+      .map(k => [k, STATS.manufacturer_names[k] || k]),
+    data: trendData('manufacturers'),
+    mount: pane => lineChart(pane.querySelector('canvas')),
+  },
+  'by-country-trend': {
+    label: 'By country',
+    kind: 'Trend',
+    filters: ['entity', 'success'],
+    unit: 'launches',
+    entities: () => Object.keys(STATS.by_country)
+      .map(k => [k, STATS.country_names[k] || k]),
+    data: trendData('countries'),
+    mount: pane => lineChart(pane.querySelector('canvas')),
   },
 };
 
@@ -463,6 +544,23 @@ const FILTER_BUILDERS = {
     label.append(cb, ' Successes only');
     return label;
   },
+  // Dropdown of the def's entities for trend charts. A stale entity
+  // from a previous def in this slot resets to the first entry.
+  entity: (slot, reload) => {
+    const list = CHART_DEFS[slot.defId].entities();
+    if (!list.some(([v]) => v === slot.filters.entity))
+      slot.filters.entity = list[0]?.[0];
+    const select = document.createElement('select');
+    select.className = 'chart-pick';
+    select.innerHTML = list.map(([v, label]) =>
+      `<option value="${esc(v)}">${esc(label)}</option>`).join('');
+    select.value = slot.filters.entity;
+    select.addEventListener('change', () => {
+      slot.filters.entity = select.value;
+      reload();
+    });
+    return select;
+  },
 };
 
 // Wire ‹ [n] of N › controls to a chart; returns a refresh that also
@@ -580,16 +678,18 @@ function reloadSlot(slot) {
 // (Re)build a slot for its current def: fresh chart instance plus that
 // def's filter controls. The pane is reset to a bare canvas first —
 // defs like the donut replace the pane's contents with their own
-// layout, so a leftover canvas/table would linger otherwise.
+// layout, so a leftover canvas/table would linger otherwise. Controls
+// are built before data() runs so they can seed filter defaults (e.g.
+// the entity picker's first entry).
 function mountSlot(slot) {
   const def = CHART_DEFS[slot.defId];
   slot.inst?.chart.destroy();
   slot.pane.innerHTML = '<canvas></canvas>';
   slot.pane.classList.remove('donut-pane');
   slot.inst = def.mount(slot.pane);
-  slot.inst.setData(def.data(slot.filters));
   slot.filtersEl.replaceChildren(
     ...def.filters.map(f => FILTER_BUILDERS[f](slot, () => reloadSlot(slot))));
+  slot.inst.setData(def.data(slot.filters));
   slot.refreshPager();
   syncAxes();
 }
