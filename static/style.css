@@ -147,6 +147,25 @@ section h2 {
   margin-bottom: 0;
 }
 
+/* Primary CTA under the chart box: opens the chart explorer modal */
+.all-charts-btn {
+  background: var(--accent-strong);
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 1rem auto 0;
+  padding: 0.65rem 1.75rem;
+}
+
+.all-charts-btn:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
 .seg {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -424,6 +443,92 @@ tbody tr:hover {
   color: var(--text);
 }
 
+/* Chart explorer modal: fills the viewport, slots laid out by app.js */
+
+.modal-card.modal-full {
+  display: flex;
+  flex-direction: column;
+  height: 92vh;
+  max-height: 92vh;
+  max-width: 95vw;
+  width: 95vw;
+}
+
+.chart-modal-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  /* Keep the Split view button clear of the absolute close × */
+  padding-right: 2rem;
+}
+
+.chart-modal-head h2 {
+  font-size: 1.25rem;
+  margin: 0;
+}
+
+.chart-slots {
+  display: grid;
+  flex: 1;
+  gap: 1rem;
+  min-height: 0;
+}
+
+.chart-slots.split {
+  grid-template-columns: 1fr 1fr;
+}
+
+.chart-slot {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.chart-slot-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.chart-pick {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 0.4rem 0.6rem;
+}
+
+.slot-close {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+  margin-left: auto;
+  padding: 0.25rem;
+}
+
+.slot-close:hover {
+  color: var(--text);
+}
+
+/* Slot canvases stretch to fill instead of the inline box's fixed height */
+.chart-slot .chart-pane {
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+
+.chart-slot .pager {
+  margin-top: 0.75rem;
+}
+
 /* Keep long titles from running under the close button */
 #modal-name,
 #rocket-modal-name {
@@ -638,6 +743,16 @@ tbody tr:hover {
   .modal-card {
     max-height: 92vh;
     padding: 1rem;
+  }
+
+  /* Explorer fills the screen; split slots stack vertically */
+  .modal-card.modal-full {
+    max-width: 100%;
+    width: 100%;
+  }
+
+  .chart-slots.split {
+    grid-template-columns: 1fr;
   }
 
   .modal-tabs {

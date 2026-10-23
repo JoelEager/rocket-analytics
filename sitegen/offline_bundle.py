@@ -69,7 +69,7 @@ def embed_images(urls_px):
             misses[url] = px
 
     if misses:
-        print(f"Need to fetch {len(misses)} images ({len(images)} already cached)")
+        print(f"Fetching {len(misses)} images ({len(images)} already cached)...")
         IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         with ThreadPoolExecutor(max_workers=8) as pool:
             futures = {pool.submit(fetch_data_uri, url, px): url for url, px in misses.items()}
@@ -115,9 +115,8 @@ def offline_context(context):
 
     # Data URIs go in one shared map (the data-images JSON block) so a
     # patch reused across launches is embedded once, not per launch.
-    print("Fetching mission patch and rocket images...")
     images = embed_images(wanted)
-    print(f"Embedded {len(images)}/{len(wanted)} images "
+    print(f"Collected {len(images)}/{len(wanted)} images "
           f"({sum(len(u) for u in images.values()) // 1024} KB after compression)")
 
     offline = {k: scrub_external(v) if k in SCRUB_KEYS else v for k, v in context.items()}
