@@ -40,6 +40,11 @@ const trendData = groupKey => s => Object.fromEntries(
     return [year, s.successOnly ? total - (row?.failed || 0) : total];
   }));
 
+// Entity pickers sort alphabetically by display label — a 100+ entry
+// list ordered by launch count can't be scanned for a name.
+const entityOptions = pairs =>
+  pairs.sort((a, b) => a[1].localeCompare(b[1]));
+
 // Registry of every chart the UI can show. `inline` charts also get a tab
 // in the main-page box; the rest appear only in the explorer modal's
 // pickers. `kind` prefixes the picker's option text ('Bars by rocket').
@@ -49,7 +54,9 @@ const trendData = groupKey => s => Object.fromEntries(
 // its dataset, and mounts a chart object inside a .chart-pane — the
 // pager shows only when the instance's pageCount() exceeds 1. Trend
 // defs also provide `entities` to populate the 'entity' filter's
-// dropdown as [value, label] pairs.
+// dropdown as [value, label] pairs, and `defaultEntity` — the
+// most-launched entity by stats order — since alphabetically first
+// would be an obscure pick.
 const CHART_DEFS = {
   'by-rocket': {
     label: 'By rocket',
@@ -111,7 +118,9 @@ const CHART_DEFS = {
     kind: 'Trend',
     filters: ['entity', 'success'],
     unit: 'launches',
-    entities: () => Object.keys(STATS.by_rocket).map(k => [k, k]),
+    entities: () =>
+      entityOptions(Object.keys(STATS.by_rocket).map(k => [k, k])),
+    defaultEntity: Object.keys(STATS.by_rocket)[0],
     data: trendData('rockets'),
     mount: pane => lineChart(pane.querySelector('canvas')),
   },
@@ -120,8 +129,9 @@ const CHART_DEFS = {
     kind: 'Trend',
     filters: ['entity', 'success'],
     unit: 'launches',
-    entities: () => Object.keys(STATS.by_manufacturer)
-      .map(k => [k, STATS.manufacturer_names[k] || k]),
+    entities: () => entityOptions(Object.keys(STATS.by_manufacturer)
+      .map(k => [k, STATS.manufacturer_names[k] || k])),
+    defaultEntity: Object.keys(STATS.by_manufacturer)[0],
     data: trendData('manufacturers'),
     mount: pane => lineChart(pane.querySelector('canvas')),
   },
@@ -130,8 +140,9 @@ const CHART_DEFS = {
     kind: 'Trend',
     filters: ['entity', 'success'],
     unit: 'launches',
-    entities: () => Object.keys(STATS.by_country)
-      .map(k => [k, STATS.country_names[k] || k]),
+    entities: () => entityOptions(Object.keys(STATS.by_country)
+      .map(k => [k, STATS.country_names[k] || k])),
+    defaultEntity: Object.keys(STATS.by_country)[0],
     data: trendData('countries'),
     mount: pane => lineChart(pane.querySelector('canvas')),
   },

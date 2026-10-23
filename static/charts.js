@@ -141,11 +141,13 @@ const FILTER_BUILDERS = {
     return label;
   },
   // Dropdown of the def's entities for trend charts. A stale entity
-  // from a previous def in this slot resets to the first entry.
+  // from a previous def in this slot resets to the def's defaultEntity
+  // (the most-launched one) rather than the alphabetically first entry.
   entity: (slot, reload) => {
-    const list = CHART_DEFS[slot.defId].entities();
+    const def = CHART_DEFS[slot.defId];
+    const list = def.entities();
     if (!list.some(([v]) => v === slot.filters.entity))
-      slot.filters.entity = list[0]?.[0];
+      slot.filters.entity = def.defaultEntity ?? list[0]?.[0];
     const select = document.createElement('select');
     select.className = 'chart-pick';
     select.innerHTML = list.map(([v, label]) =>
@@ -325,6 +327,7 @@ function addSlot(defId, filters) {
   el.className = 'chart-slot';
   el.innerHTML = `
     <div class="chart-slot-head">
+      <span class="slot-kind"></span>
       <select class="chart-pick" aria-label="Chart"></select>
       <div class="slot-filters"></div>
       <button class="slot-close" type="button" aria-label="Remove chart">&times;</button>
@@ -345,17 +348,27 @@ function addSlot(defId, filters) {
     inst: null,
   };
   const select = el.querySelector('.chart-pick');
-  // Options carry the def's chart-type prefix (the inline tabs keep
-  // the short label).
-  select.innerHTML = Object.entries(CHART_DEFS)
-    .map(([id, d]) =>
-      `<option value="${id}">${d.kind} ${esc(d.label.toLowerCase())}</option>`)
-    .join('');
+  // Options sit under an optgroup per chart kind, so the option text
+  // only needs the def's subject label (the inline tabs use it alone).
+  const kinds = [...new Set(Object.values(CHART_DEFS).map(d => d.kind))];
+  select.innerHTML = kinds.map(kind =>
+    `<optgroup label="${esc(kind)}">${Object.entries(CHART_DEFS)
+      .filter(([, d]) => d.kind === kind)
+      .map(([id, d]) => `<option value="${id}">${esc(d.label)}</option>`)
+      .join('')}</optgroup>`).join('');
   select.value = defId;
+  // The select only displays the subject label, so the kind tag beside
+  // it tells e.g. a Bars slot from a Donut slot at the same subject.
+  const kindTag = el.querySelector('.slot-kind');
+  const syncKind = () => {
+    kindTag.textContent = CHART_DEFS[slot.defId].kind;
+  };
   select.addEventListener('change', () => {
     slot.defId = select.value;
+    syncKind();
     mountSlot(slot);
   });
+  syncKind();
   el.querySelector('.slot-close')
     .addEventListener('click', () => removeSlot(slot));
   slot.refreshPager = slotPager(slot);

@@ -508,6 +508,21 @@ tbody tr:hover {
   padding: 0.4rem 0.6rem;
 }
 
+/* Kind tag beside the chart picker: the select's visible value is only
+   the subject label, so two same-subject slots of different kinds
+   would read identically without it. */
+.slot-kind {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 0.15rem 0.45rem;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
 /* Slot filter controls (year seg, country picker…) sit in a row inside
    the slot head and wrap under each other on narrow slots. */
 
