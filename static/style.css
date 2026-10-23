@@ -635,6 +635,66 @@ tbody tr:hover {
   margin-top: 0.75rem;
 }
 
+/* Donut pane: figure on the left, scrollable percentage table beside
+   it (the legend is off — the table is the legend). */
+
+.donut-pane {
+  align-items: stretch;
+  display: flex;
+  gap: 1rem;
+}
+
+.donut-figure {
+  flex: 1 1 55%;
+  min-height: 0;
+  min-width: 0;
+}
+
+.donut-table-wrap {
+  flex: 1 1 45%;
+  min-height: 0;
+  min-width: 160px;
+  overflow-y: auto;
+}
+
+.donut-table {
+  font-size: 0.85rem;
+}
+
+.donut-table th,
+.donut-table td {
+  padding: 0.3rem 0.5rem;
+}
+
+/* Count and share columns read better right-aligned */
+.donut-table th:nth-child(2),
+.donut-table td:nth-child(2),
+.donut-table th:nth-child(3),
+.donut-table td:nth-child(3) {
+  text-align: right;
+}
+
+.donut-table tfoot td {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.donut-empty {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* 'Successes only' checkbox in the slot filters row */
+.success-toggle {
+  align-items: center;
+  color: var(--text-soft);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 0.9rem;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
 /* Keep long titles from running under the close button */
 #modal-name,
 #rocket-modal-name {
@@ -937,6 +997,17 @@ tbody tr:hover {
   .chart-slot-head .chart-pick {
     max-width: 100%;
     min-width: 0;
+  }
+
+  /* Donut stacks vertically: figure gets a fixed share so the table
+     still has room to scroll */
+  .donut-pane {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .donut-figure {
+    flex: 0 0 45%;
   }
 
   /* The country popover stays inside the viewport */

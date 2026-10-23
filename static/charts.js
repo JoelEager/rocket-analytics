@@ -35,6 +35,10 @@ const tooltipNames = fullNames => fullNames ? {callbacks: {
   title: items => fullNames[items[0].label] || items[0].label,
 }} : {};
 
+// A dataset row is either a plain count or a {category: count} dict.
+const rowTotal = v => (v && typeof v === 'object')
+  ? Object.values(v).reduce((a, b) => a + b, 0) : v;
+
 // A flat bar chart over {label: count} rows.
 function pagedBarChart(canvas, fullNames) {
   const chart = new Chart(canvas, {
@@ -157,6 +161,80 @@ function stackedBarChart(canvas, fullNames) {
   return view;
 }
 
+// Donut: top slices get wedges, the tail collapses into 'Other' — with
+// 100+ rockets a slice per row is unreadable. The color list is one
+// longer than the wedge count so 'Other' always lands on neutral gray.
+const DONUT_TOP = 10;
+const DONUT_COLORS = ['#6ea8fe', '#4ade80', '#a78bfa', '#fbbf24',
+  '#f87171', '#38bdf8', '#fb923c', '#34d399', '#e879f9', '#a3a3a3',
+  '#6b7280'];
+
+// Doughnut + percentage table mounted inside a chart pane. Returns no
+// pageCount, so the slot pager hides itself; the scrollable table is
+// the complete legend since the donut can't label every slice.
+function donutChart(pane, fullNames, group) {
+  pane.classList.add('donut-pane');
+  pane.innerHTML =
+    '<div class="donut-figure"><canvas></canvas></div>' +
+    '<div class="donut-table-wrap"></div>';
+  const tableWrap = pane.querySelector('.donut-table-wrap');
+  let total = 0;
+  const names = tooltipNames(fullNames);
+  const chart = new Chart(pane.querySelector('canvas'), {
+    type: 'doughnut',
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        backgroundColor: DONUT_COLORS,
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      maintainAspectRatio: false,
+      cutout: '55%',
+      plugins: {
+        legend: {display: false},  // the table is the legend
+        tooltip: {
+          ...names,
+          callbacks: {
+            ...names.callbacks,
+            label: it => ` ${it.parsed.toLocaleString()} ` +
+              `(${total ? (it.parsed / total * 100).toFixed(1) : '0.0'}%)`,
+          },
+        },
+      },
+    },
+  });
+  const setData = d => {
+    const entries = Object.entries(d).filter(([, v]) => v > 0);
+    total = entries.reduce((s, [, v]) => s + v, 0);
+    const other = entries.slice(DONUT_TOP).reduce((s, [, v]) => s + v, 0);
+    const slices = other
+      ? [...entries.slice(0, DONUT_TOP), ['Other', other]]
+      : entries.slice(0, DONUT_TOP);
+    chart.data.labels = slices.map(([k]) => k);
+    chart.data.datasets[0].data = slices.map(([, v]) => v);
+    chart.update();
+    tableWrap.innerHTML = total
+      ? `<table class="donut-table"><thead>
+           <tr><th>${esc(group)}</th><th>#</th><th>%</th></tr>
+         </thead><tbody>${entries.map(([k, v]) => `
+           <tr><td>${esc(fullNames?.[k] || k)}</td>
+               <td>${v.toLocaleString()}</td>
+               <td>${(v / total * 100).toFixed(1)}</td></tr>`).join('')}
+         </tbody><tfoot>
+           <tr><td>Total</td><td>${total.toLocaleString()}</td>
+               <td>100</td></tr>
+         </tfoot></table>`
+      : '<p class="donut-empty">No launches in this selection.</p>';
+  };
+  // A single "page" keeps the instance contract uniform — the slot
+  // pager reads pageCount() and hides itself when it returns 1.
+  return {chart, setData, get page() { return 0; },
+    pageCount: () => 1, setPage() {}};
+}
+
 // Scope lookup shared by chart defs: 'all' reads the lifetime stats key,
 // a year reads that year's bucket (missing years -> empty chart).
 const scopedData = (allKey, yearKey) => year =>
@@ -174,38 +252,73 @@ const applyCountryFilter = (data, sel) => {
     .filter(([name]) => sel.codes.has(ROCKET_COUNTRIES[name]) !== sel.negate));
 };
 
+// Donut defs share the bar charts' categorized rows but need flat
+// {label: count} slices: total each row, dropping 'failed' when the
+// Successes-only filter is on.
+const donutSlices = (rows, successOnly) => Object.fromEntries(
+  Object.entries(rows).map(([k, row]) =>
+    [k, successOnly ? rowTotal(row) - (row.failed || 0) : rowTotal(row)]));
+
 // Registry of every chart the UI can show. `inline` charts also get a tab
 // in the main-page box; the rest appear only in the explorer modal's
-// pickers. Each def lists the filters it supports (each name renders a
+// pickers. `kind` prefixes the picker's option text ('Bars by rocket').
+// Each def lists the filters it supports (each name renders a
 // control in the modal slot — the inline box only ever shows 'year'),
-// maps a filter-state object {year, country} to its dataset, and mounts
-// a chart object on a canvas — the pager shows only when the result has
-// pageCount().
+// maps a filter-state object {year, country, successOnly} to its
+// dataset, and mounts a chart object inside a .chart-pane — the pager
+// shows only when the instance's pageCount() exceeds 1.
 const CHART_DEFS = {
   'by-rocket': {
     label: 'By rocket',
+    kind: 'Bars',
     inline: true,
     filters: ['year', 'country'],
     unit: 'launches',
     data: s => applyCountryFilter(
       scopedData('by_rocket', 'rockets')(s.year), s.country),
-    mount: canvas => stackedBarChart(canvas),
+    mount: pane => stackedBarChart(pane.querySelector('canvas')),
   },
   'by-manufacturer': {
     label: 'By manufacturer',
+    kind: 'Bars',
     inline: true,
     filters: ['year'],
     unit: 'launches',
     data: s => scopedData('by_manufacturer', 'manufacturers')(s.year),
-    mount: canvas => stackedBarChart(canvas, STATS.manufacturer_names),
+    mount: pane => stackedBarChart(pane.querySelector('canvas'), STATS.manufacturer_names),
   },
   'by-country': {
     label: 'By country',
+    kind: 'Bars',
     inline: true,
     filters: ['year'],
     unit: 'launches',
     data: s => scopedData('by_country', 'countries')(s.year),
-    mount: canvas => stackedBarChart(canvas, STATS.country_names),
+    mount: pane => stackedBarChart(pane.querySelector('canvas'), STATS.country_names),
+  },
+  'by-rocket-donut': {
+    label: 'By rocket',
+    kind: 'Donut',
+    filters: ['year', 'country', 'success'],
+    data: s => applyCountryFilter(donutSlices(
+      scopedData('by_rocket', 'rockets')(s.year), s.successOnly), s.country),
+    mount: pane => donutChart(pane, null, 'Rocket'),
+  },
+  'by-manufacturer-donut': {
+    label: 'By manufacturer',
+    kind: 'Donut',
+    filters: ['year', 'success'],
+    data: s => donutSlices(
+      scopedData('by_manufacturer', 'manufacturers')(s.year), s.successOnly),
+    mount: pane => donutChart(pane, STATS.manufacturer_names, 'Manufacturer'),
+  },
+  'by-country-donut': {
+    label: 'By country',
+    kind: 'Donut',
+    filters: ['year', 'success'],
+    data: s => donutSlices(
+      scopedData('by_country', 'countries')(s.year), s.successOnly),
+    mount: pane => donutChart(pane, STATS.country_names, 'Country'),
   },
 };
 
@@ -329,6 +442,21 @@ const FILTER_BUILDERS = {
     reload();
   }),
   country: (slot, reload) => makeCountryFilter(slot.filters.country, reload),
+  // 'Successes only' — donut defs can't show the failed segment, so
+  // this toggle swaps their dataset to success counts instead.
+  success: (slot, reload) => {
+    const label = document.createElement('label');
+    label.className = 'success-toggle';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = slot.filters.successOnly;
+    cb.addEventListener('change', () => {
+      slot.filters.successOnly = cb.checked;
+      reload();
+    });
+    label.append(cb, ' Successes only');
+    return label;
+  },
 };
 
 // Wire ‹ [n] of N › controls to a chart; returns a refresh that also
@@ -377,7 +505,7 @@ for (const [id, def] of Object.entries(CHART_DEFS)) {
   pane.hidden = true;
   pane.innerHTML = '<canvas></canvas>';
   chartPanes.append(pane);
-  const inst = def.mount(pane.querySelector('canvas'));
+  const inst = def.mount(pane);
   inst.setData(def.data({year: 'all'}));
   charts[pane.id] = {id, def, inst};
   const tab = document.createElement('button');
@@ -421,7 +549,8 @@ let slots = [];
 // A slot's filter state: year scope plus the country picker's
 // {codes, negate} selection. cloneFilters copies it so a split slot's
 // toggles don't write into its sibling's state.
-const freshFilters = year => ({year, country: {codes: new Set(), negate: false}});
+const freshFilters = year => ({year,
+  country: {codes: new Set(), negate: false}, successOnly: false});
 const cloneFilters = f => ({...f,
   country: {codes: new Set(f.country.codes), negate: f.country.negate}});
 
@@ -443,11 +572,15 @@ function reloadSlot(slot) {
 }
 
 // (Re)build a slot for its current def: fresh chart instance plus that
-// def's filter controls.
+// def's filter controls. The pane is reset to a bare canvas first —
+// defs like the donut replace the pane's contents with their own
+// layout, so a leftover canvas/table would linger otherwise.
 function mountSlot(slot) {
   const def = CHART_DEFS[slot.defId];
   slot.inst?.chart.destroy();
-  slot.inst = def.mount(slot.canvas);
+  slot.pane.innerHTML = '<canvas></canvas>';
+  slot.pane.classList.remove('donut-pane');
+  slot.inst = def.mount(slot.pane);
   slot.inst.setData(def.data(slot.filters));
   slot.filtersEl.replaceChildren(
     ...def.filters.map(f => FILTER_BUILDERS[f](slot, () => reloadSlot(slot))));
@@ -464,10 +597,6 @@ function layoutSlots() {
   });
 }
 
-// A dataset row is either a plain count or a {category: count} dict.
-const rowTotal = v => (v && typeof v === 'object')
-  ? Object.values(v).reduce((a, b) => a + b, 0) : v;
-
 // Force both slots onto the same y-axis when they chart the same unit, so
 // bar heights compare honestly. The bound comes from each slot's full
 // dataset, not just the visible page. It's a suggestedMax, not max:
@@ -481,7 +610,9 @@ function syncAxes() {
         Object.values(CHART_DEFS[s.defId].data(s.filters)).map(rowTotal)))
     : 0;
   slots.forEach(s => {
-    s.inst.chart.options.scales.y.suggestedMax = max || undefined;
+    // Non-cartesian charts (the donuts) have no scales.y to sync.
+    const y = s.inst.chart.options.scales?.y;
+    if (y) y.suggestedMax = max || undefined;
     s.inst.chart.update();
   });
 }
@@ -505,18 +636,18 @@ function addSlot(defId, filters) {
     </div>`;
   const slot = {
     el,
-    canvas: el.querySelector('canvas'),
+    pane: el.querySelector('.chart-pane'),
     filtersEl: el.querySelector('.slot-filters'),
     defId,
     filters,
     inst: null,
   };
   const select = el.querySelector('.chart-pick');
-  // Options carry the "Launch bars" type prefix (the inline tabs keep
-  // the short label); a non-bar def would get its own prefix instead.
+  // Options carry the def's chart-type prefix (the inline tabs keep
+  // the short label).
   select.innerHTML = Object.entries(CHART_DEFS)
     .map(([id, d]) =>
-      `<option value="${id}">Launch bars ${esc(d.label.toLowerCase())}</option>`)
+      `<option value="${id}">${d.kind} ${esc(d.label.toLowerCase())}</option>`)
     .join('');
   select.value = defId;
   select.addEventListener('change', () => {
