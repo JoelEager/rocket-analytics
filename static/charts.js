@@ -10,9 +10,32 @@ Chart.defaults.borderColor = '#1f2937';
 
 const PAGE_SIZE = 10;
 
-// A bar chart plus a paged view over a {label: count} dataset. Returns
-// the chart and its paging controls as one object; the caller hides the
-// pager when pageCount() is 1.
+// Paging wrapper shared by the chart factories: slices a {label: row}
+// dataset PAGE_SIZE rows at a time and lets `fill` load the visible rows
+// into the chart's datasets. The caller hides the pager when
+// pageCount() is 1.
+function pagedView(chart, fill) {
+  let full = {}, page = 0;
+  const pageCount = () =>
+    Math.max(1, Math.ceil(Object.keys(full).length / PAGE_SIZE));
+  const setPage = p => {
+    page = Math.max(0, Math.min(p, pageCount() - 1));
+    const entries = Object.entries(full)
+      .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+    chart.data.labels = entries.map(([k]) => k);
+    fill(entries);
+    chart.update();
+  };
+  const setData = d => { full = d; setPage(0); };
+  return {chart, get page() { return page; }, pageCount, setPage, setData};
+}
+
+// Chart labels are abbreviations; tooltips show the full name.
+const tooltipNames = fullNames => fullNames ? {callbacks: {
+  title: items => fullNames[items[0].label] || items[0].label,
+}} : {};
+
+// A flat bar chart over {label: count} rows.
 function pagedBarChart(canvas, fullNames) {
   const chart = new Chart(canvas, {
     type: 'bar',
@@ -31,26 +54,107 @@ function pagedBarChart(canvas, fullNames) {
       },
       plugins: {
         legend: {display: false},
-        // Chart labels are abbreviations; tooltips show the full name.
-        tooltip: fullNames ? {callbacks: {
-          title: items => fullNames[items[0].label] || items[0].label,
-        }} : {},
+        tooltip: tooltipNames(fullNames),
       },
     },
   });
-  let full = {}, page = 0;
-  const pageCount = () =>
-    Math.max(1, Math.ceil(Object.keys(full).length / PAGE_SIZE));
-  const setPage = p => {
-    page = Math.max(0, Math.min(p, pageCount() - 1));
-    const entries = Object.entries(full)
-      .slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
-    chart.data.labels = entries.map(([k]) => k);
+  return pagedView(chart, entries => {
     chart.data.datasets[0].data = entries.map(([, v]) => v);
-    chart.update();
+  });
+}
+
+// Segment keys a stacked row may carry, in stack order (failures always
+// on top). Yearly data uses orbital/suborbital/failed; 'all time' has no
+// lifetime orbit breakdown, so it stacks success/failed instead.
+const SEGMENTS = {
+  success:    {label: 'Success',    color: '#4ade80'},
+  orbital:    {label: 'Orbital',    color: '#6ea8fe'},
+  suborbital: {label: 'Suborbital', color: '#a78bfa'},
+  failed:     {label: 'Failed',     color: '#f87171'},
+};
+const SEGMENT_ORDER = ['success', 'orbital', 'suborbital', 'failed'];
+
+// Draws each bar's segment counts above its top segment (Chart.js has
+// no built-in data labels), comma-separated and colored to match the
+// legend. Bars too narrow for the text are skipped so dense pages stay
+// legible; layout.padding.top leaves room for the label.
+const stackTotals = {
+  id: 'stackTotals',
+  afterDatasetsDraw(chart) {
+    const n = chart.data.datasets.length;
+    const meta = n && chart.getDatasetMeta(n - 1);
+    if (!meta?.data?.length) return;
+    const {ctx} = chart;
+    ctx.save();
+    ctx.font = `11px ${Chart.defaults.font.family}`;
+    ctx.textAlign = 'left';
+    const sepW = ctx.measureText(', ').width;
+    meta.data.forEach((bar, i) => {
+      const parts = chart.data.datasets.map(ds =>
+        ({v: ds.data[i] || 0, color: ds.backgroundColor}));
+      const widths = parts.map(p => ctx.measureText(String(p.v)).width);
+      const totalW = widths.reduce((a, b) => a + b, sepW * (parts.length - 1));
+      if (bar.width + 8 < totalW) return;
+      const y = Math.min(bar.y, bar.base) - 4;
+      let x = bar.x - totalW / 2;
+      parts.forEach((p, j) => {
+        ctx.fillStyle = p.color;
+        ctx.fillText(p.v, x, y);
+        x += widths[j] + sepW;
+      });
+    });
+    ctx.restore();
+  },
+};
+
+function stackedBarChart(canvas, fullNames) {
+  const names = tooltipNames(fullNames);
+  const chart = new Chart(canvas, {
+    type: 'bar',
+    data: {labels: [], datasets: []},
+    options: {
+      maintainAspectRatio: false,
+      layout: {padding: {top: 18}},
+      // index mode + intersect:false makes the whole bar column a hover
+      // target, so even a 1-count failure segment shows its tooltip.
+      interaction: {mode: 'index', intersect: false},
+      scales: {
+        x: {stacked: true},
+        y: {stacked: true, ticks: {precision: 0}},
+      },
+      plugins: {
+        legend: {position: 'bottom'},
+        tooltip: {
+          ...names,
+          callbacks: {
+            ...names.callbacks,
+            footer: items => 'Total: ' + items.reduce((s, i) => s + i.parsed.y, 0),
+          },
+        },
+      },
+    },
+    plugins: [stackTotals],
+  });
+  let keys = [];
+  const view = pagedView(chart, entries => {
+    chart.data.datasets.forEach((ds, i) => {
+      ds.data = entries.map(([, v]) => v[keys[i]] || 0);
+    });
+  });
+  const setData = view.setData;
+  // Rebuild the dataset list from whichever segment keys this dataset
+  // contains, so the legend only names what the rows actually show.
+  view.setData = d => {
+    const present = new Set(Object.values(d).flatMap(Object.keys));
+    keys = SEGMENT_ORDER.filter(k => present.has(k));
+    chart.data.datasets = keys.map(k => ({
+      label: SEGMENTS[k].label,
+      data: [],
+      backgroundColor: SEGMENTS[k].color,
+    }));
+    setData(d);
   };
-  const setData = d => { full = d; setPage(0); };
-  return {chart, get page() { return page; }, pageCount, setPage, setData};
+  return view;
 }
 
 // Scope lookup shared by chart defs: 'all' reads the lifetime stats key,
@@ -70,7 +174,7 @@ const CHART_DEFS = {
     filters: ['year'],
     unit: 'launches',
     data: scopedData('by_rocket', 'rockets'),
-    mount: canvas => pagedBarChart(canvas),
+    mount: canvas => stackedBarChart(canvas),
   },
   'by-manufacturer': {
     label: 'By manufacturer',
@@ -78,7 +182,7 @@ const CHART_DEFS = {
     filters: ['year'],
     unit: 'launches',
     data: scopedData('by_manufacturer', 'manufacturers'),
-    mount: canvas => pagedBarChart(canvas, STATS.manufacturer_names),
+    mount: canvas => stackedBarChart(canvas, STATS.manufacturer_names),
   },
   'by-country': {
     label: 'By country',
@@ -86,7 +190,7 @@ const CHART_DEFS = {
     filters: ['year'],
     unit: 'launches',
     data: scopedData('by_country', 'countries'),
-    mount: canvas => pagedBarChart(canvas, STATS.country_names),
+    mount: canvas => stackedBarChart(canvas, STATS.country_names),
   },
 };
 
@@ -240,6 +344,10 @@ function layoutSlots() {
   });
 }
 
+// A dataset row is either a plain count or a {category: count} dict.
+const rowTotal = v => (v && typeof v === 'object')
+  ? Object.values(v).reduce((a, b) => a + b, 0) : v;
+
 // Force both slots onto the same y-axis when they chart the same unit, so
 // bar heights compare honestly. The max comes from each slot's full
 // dataset, not just the visible page.
@@ -248,7 +356,7 @@ function syncAxes() {
   const shared = slots.length === 2 && units[0] && units[0] === units[1];
   const max = shared
     ? Math.max(0, ...slots.flatMap(s =>
-        Object.values(CHART_DEFS[s.defId].data(s.scope))))
+        Object.values(CHART_DEFS[s.defId].data(s.scope)).map(rowTotal)))
     : 0;
   slots.forEach(s => {
     s.inst.chart.options.scales.y.max = max || undefined;

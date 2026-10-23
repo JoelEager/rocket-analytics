@@ -68,7 +68,9 @@ LL2 API ──fetch──> launch dicts ──curate──> details + entities +
   API.
 - `sitegen/details.py` — selects which API fields the site actually uses. The API returns very large launch objects;
   the `*_FIELDS` specs and `pick`/`pull` helpers copy just the needed fields into flat dicts.
-- `sitegen/stats.py` — aggregates launch counts per rocket, per manufacturer, per country, and per year for the charts.
+- `sitegen/stats.py` — aggregates launch counts per rocket, per manufacturer, per country, and per year for the
+  charts. Yearly bars split into orbital, suborbital, and failed segments; the lifetime 'all time' bars split into
+  success and failed only, since the API has no lifetime orbit breakdown.
 - `sitegen/build.py` — collects shared entities (rockets, providers, pads, agencies), renders `templates/index.html`
   into `site/`, and hands off to the offline build.
 - `sitegen/offline_bundle.py` — the offline single-file build: downloads and downscales mission patch / rocket images
