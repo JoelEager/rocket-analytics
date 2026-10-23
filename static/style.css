@@ -841,24 +841,112 @@ tbody tr:hover {
     height: 300px;
   }
 
-  /* Modal fills more of the screen; tabs wrap; detail labels stack */
+  /* All modals go truly full screen on small screens — no margins or
+     rounded corners. dvh tracks the real viewport height as mobile
+     browser chrome collapses and expands; min-height keeps even short
+     detail modals edge-to-edge. */
   .modal {
-    padding: 0.5rem;
+    padding: 0;
   }
 
   .modal-card {
-    max-height: 92vh;
+    border: none;
+    border-radius: 0;
+    max-height: 100dvh;
+    min-height: 100dvh;
     padding: 1rem;
   }
 
-  /* Explorer fills the screen; split slots stack vertically */
   .modal-card.modal-full {
+    height: 100dvh;
+    max-height: 100dvh;
     max-width: 100%;
+    padding: 0.75rem;
     width: 100%;
   }
 
+  .chart-modal-head {
+    margin-bottom: 0.5rem;
+  }
+
+  /* Split slots stack and split the modal height evenly */
+  .chart-slots {
+    gap: 0.5rem;
+  }
+
   .chart-slots.split {
+    grid-auto-rows: 1fr;
     grid-template-columns: 1fr;
+  }
+
+  .chart-slot-head {
+    gap: 0.35rem;
+    margin-bottom: 0.5rem;
+  }
+
+  /* Compact slot head: picker + close on line one, filters on line
+     two — every control row is chart space on a phone. `order` lifts
+     the close chip up beside the select without touching the DOM. */
+  /* > only: the country button is also a .chart-pick but must not grow */
+  .chart-slot-head > .chart-pick {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .slot-close {
+    order: 2;
+  }
+
+  .slot-filters {
+    flex: 1 0 100%;
+    order: 3;
+  }
+
+  .slot-filters .seg {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .seg-btn {
+    padding: 0.4rem 0.65rem;
+  }
+
+  .country-filter .chart-pick {
+    max-width: 45vw;
+  }
+
+  .chart-slot .pager {
+    margin-top: 0.5rem;
+  }
+
+  /* Year segs can't shrink enough for a phone-width head: let them
+     scroll sideways inside their row instead of overflowing the slot.
+     max-width beats the flex items' min-content floor. */
+  #chart-scope,
+  .slot-filters {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .chart-head .seg,
+  .slot-filters .seg {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .chart-slot-head .chart-pick {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  /* The country popover stays inside the viewport */
+  .country-pop {
+    max-width: 80vw;
+  }
+
+  /* Roomier touch targets on the picker rows */
+  .country-row {
+    padding: 0.15rem 0;
   }
 
   .modal-tabs {
