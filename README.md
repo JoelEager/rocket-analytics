@@ -52,6 +52,52 @@ skipped if a static file is missing.
   in-progress run so the newest commit deploys promptly, while scheduled
   and manual runs queue instead.
 
+## Project layout
+
+The pipeline is one module per step; data flows roughly like this:
+
+```
+LL2 API ──fetch──> launch dicts ──curate──> details + entities + stats
+                      │                              │
+                      └──> launch_cache.json         └──> Jinja context
+                                                              │
+                                            templates/index.html + static/
+                                                              │
+                                                    site/index.html + bundle
+```
+
+- `main.py` — command-line entry point. Decides between cached data and a
+  fresh fetch, then hands everything to the builder.
+- `sitegen/config.py` — all tunables and file locations in one place
+  (page counts, API base URL, directory paths). Start here to change
+  how much data is fetched or where things live.
+- `sitegen/api.py` — paginated requests to the Launch Library 2 API with
+  retries. The API returns 100 launches per page plus a `next` link.
+- `sitegen/cache.py` — reads/writes `launch_cache.json` so development
+  builds don't re-hit the rate-limited API.
+- `sitegen/details.py` — selects which API fields the site actually uses.
+  The API returns very large launch objects; the `*_FIELDS` specs and
+  `pick`/`pull` helpers copy just the needed fields into flat dicts.
+- `sitegen/stats.py` — aggregates launch counts per rocket, per
+  manufacturer, and per year for the charts.
+- `sitegen/build.py` — collects shared entities (rockets, providers,
+  pads, agencies), renders `templates/index.html`, and produces the
+  offline bundle by re-rendering with CSS/JS inlined and remote URLs
+  stripped.
+- `templates/index.html` — the site's markup as one Jinja template; all
+  charts and tables are driven by the context dict built in `build.py`.
+- `static/` — the stylesheet, the page's JavaScript (`app.js`, all
+  interactive behavior: tabs, filter, modals, charts), and a vendored
+  Chart.js — copied into `site/` verbatim and inlined for the bundle.
+- `api-examples/` — sample API responses. Open these to see the raw
+  shape of a launch record before it's curated by `details.py`.
+
+**Reading the code:** follow the data. Start at `main.main()`, then
+`api.fetch_launches()` for input, `details.launch_detail()` and
+`details.collect_entities()` for the field transformations,
+`stats.compute_stats()` for aggregation, and `build.build_site()` /
+`build.build_bundle()` for output.
+
 ## Useful Links
 - Launch Library 2 API
   - [Documentation](https://ll.thespacedevs.com/docs/)

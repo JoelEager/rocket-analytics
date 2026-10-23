@@ -25,6 +25,7 @@ def load_cache(max_age=None):
         try:
             age = datetime.now(timezone.utc) - datetime.fromisoformat(last_updated)
         except (TypeError, ValueError):
+            # A missing or malformed timestamp counts as stale.
             age = None
         if age is None or age > max_age:
             print(f"Cache is stale ({last_updated}); refreshing.")

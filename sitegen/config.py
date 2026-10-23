@@ -16,3 +16,5 @@ CACHE_FILE = Path("launch_cache.json")
 # Alternate output: a portable single-file build with all resources inlined.
 BUNDLE_FILE = SITE_DIR / "rocket-analytics-offline.html"
 CHARTJS_FILE = STATIC_DIR / "chart.js"
+APPJS_FILE = STATIC_DIR / "app.js"
+CSS_FILE = STATIC_DIR / "style.css"

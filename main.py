@@ -33,6 +33,8 @@ def main():
             print(f"Fetching previous launches ({PAST_LAUNCH_PAGES} pages)...")
             previous = fetch_launches("previous", PAST_LAUNCH_PAGES)
         except Exception as e:
+            # A failed build is worse than stale data: fall back to
+            # whatever cache exists, no matter its age.
             stale = load_cache()
             if not stale:
                 raise

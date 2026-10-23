@@ -565,12 +565,9 @@ tbody tr:hover {
 }
 
 @media (max-width: 640px) {
-  header {
-    padding: 2rem 1rem 1.5rem;
-  }
-
   /* Button joins the header flow below the title instead of overlapping it */
   header {
+    padding: 2rem 1rem 1.5rem;
     align-items: center;
     display: flex;
     flex-direction: column;

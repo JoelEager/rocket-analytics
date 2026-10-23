@@ -7,6 +7,7 @@ from .config import API_BASE, MAX_ATTEMPTS, PAGE_SIZE
 
 def get_json(endpoint, params):
     """GET an LL2 launch endpoint with retries; return the decoded JSON."""
+    error = None
     for attempt in range(MAX_ATTEMPTS):
         try:
             response = requests.get(f"{API_BASE}/launch/{endpoint}/",
@@ -14,16 +15,20 @@ def get_json(endpoint, params):
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
+            error = e
             print(f"Attempt {attempt + 1} failed: {e}")
-    raise RuntimeError("Failed to fetch data from the API")
+    # Every attempt failed; keep the last error attached for debugging.
+    raise RuntimeError(f"Failed to fetch {endpoint} launches") from error
 
 
 def fetch_launches(endpoint, pages):
     """Fetch up to `pages` pages of launches from an endpoint."""
     params = {"limit": PAGE_SIZE, "mode": "detailed"}
     if endpoint == "upcoming":
+        # Soonest first, and skip anything that has already launched.
         params.update(ordering="net", hide_recent_previous="true")
     else:
+        # Newest first so the most recent launches are fetched first.
         params["ordering"] = "-net"
 
     results = []
@@ -31,6 +36,7 @@ def fetch_launches(endpoint, pages):
         data = get_json(endpoint, {**params, "offset": i * PAGE_SIZE})
         print(f"Got page {i + 1}")
         results.extend(data["results"])
+        # The API links to the next page (or null at the end of the list).
         if not data.get("next"):
             print("No more pages to fetch.")
             break

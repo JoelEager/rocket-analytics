@@ -13,6 +13,8 @@ def compute_stats(rockets, previous):
     no per-rocket yearly counts."""
     by_rocket = {}
     by_manufacturer = Counter()
+    # Chart labels use the manufacturer abbreviation; keep the full name
+    # around so the frontend can show it too.
     manufacturer_names = {}
     for r in rockets.values():
         if not r.get("launches"):
@@ -24,9 +26,9 @@ def compute_stats(rockets, previous):
             by_manufacturer[label] += r["launches"]
             manufacturer_names[label] = r["manufacturer"]
 
-    # Results are fetched newest-first and cut off mid-year at the page
-    # cap, so the oldest year in the set is complete only when the API
-    # ran out of launches before the cap was hit.
+    # Tally launches per calendar year — the API's own per-rocket counts
+    # are lifetime-only. Each year gets a Counter for rockets and one
+    # for manufacturers.
     per_year = defaultdict(lambda: [Counter(), Counter()])
     for launch in previous:
         launch_year = (launch.get("net") or "")[:4]
@@ -43,9 +45,16 @@ def compute_stats(rockets, previous):
             manufacturer_names[label] = manufacturer["name"]
 
     years = sorted(per_year, reverse=True)
+    # Results are fetched newest-first and may be cut off mid-year at the
+    # page cap, so the oldest year is complete only when the API ran out
+    # of launches before the cap was hit.
     if len(previous) >= PAST_LAUNCH_PAGES * PAGE_SIZE:
         years = years[:-1]
-    top = lambda c: dict(c.most_common())
+
+    def top(counter):
+        """Counter -> dict ordered by descending count, for the charts."""
+        return dict(counter.most_common())
+
     return {
         "rocket_count": len(rockets),
         "total": sum(by_rocket.values()),

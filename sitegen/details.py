@@ -8,7 +8,9 @@ def pick(value, key):
 
 def pull(source, spec):
     """Copy fields from a dict. Spec items are 'key' for same-named copies
-    or (dest, 'key' | 'key.subkey') to rename/unwrap."""
+    or (dest, 'key' | 'key.subkey') to rename/unwrap — e.g. the spec
+    ['name', ('orbit', 'orbit.abbrev')] maps source['name'] to out['name']
+    and source['orbit']['abbrev'] to out['orbit']."""
     out = {}
     for item in spec:
         if isinstance(item, str):
@@ -103,13 +105,10 @@ def link_details(*url_lists):
             url = pick(entry, "url")
             if not url:
                 continue
+            link = {"url": url}
             if isinstance(entry, dict):
-                links.append({
-                    "url": url,
-                    "label": pick(entry.get("type"), "name"),
-                })
-            else:
-                links.append({"url": url})
+                link["label"] = pick(entry.get("type"), "name")
+            links.append(link)
     return links
 
 
@@ -127,6 +126,8 @@ def launch_detail(launch):
             if (url := pick(p, "image_url"))
         ],
         "program": [pick(p, "name") for p in launch.get("program") or []],
+        # IDs into the entities dict, so the frontend can look up the
+        # provider/rocket/pad/agency details instead of embedding copies.
         "provider_id": pick(launch.get("launch_service_provider"), "id"),
         "rocket_id": pick(pick(launch.get("rocket"), "configuration"), "id"),
         "pad_id": pick(launch.get("pad"), "id"),
