@@ -5,7 +5,7 @@ from datetime import timedelta
 
 from sitegen.api import fetch_launches
 from sitegen.build import build_site
-from sitegen.cache import load_cache, save_cache
+from sitegen.launch_cache import load_cache, save_cache
 from sitegen.config import PAST_LAUNCH_PAGES, UPCOMING_LAUNCH_PAGES
 
 

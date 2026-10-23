@@ -9,6 +9,7 @@
   edge cases (e.g. a malformed cache timestamp counts as stale), and
   API quirks (e.g. why upcoming and previous use different orderings).
 - Skip comments that merely restate the code.
+- Jinja comments use `{# ... #}` so they don't reach the rendered HTML.
 
 ## README
 
@@ -18,6 +19,28 @@
 - Keep it accurate when refactoring: path references (e.g. constants in
   `sitegen/config.py`), module names, and usage examples must match the
   actual code.
+- Wrap prose at 120 characters. Never split links, code spans, or
+  hyphenated words across a line break — textwrap's defaults do this;
+  guard against it (e.g. `break_on_hyphens=False`) or fix manually.
+
+## Naming
+
+- The build produces two outputs; qualify "bundle" wording as the
+  *offline* build wherever it would otherwise be ambiguous
+  (`sitegen/offline_bundle.py`, `OFFLINE_FILE`, `offline_href`).
+- Directories use kebab case (`image-cache/`).
+
+## Front end
+
+- `static/app.js` holds all page behavior; `templates/index.html` is
+  markup, and shared Jinja macros (e.g. `modal()`) live in
+  `templates/macros.html`.
+- Scripts must render at the END of `<body>`: app.js reads the `data-*`
+  JSON blocks at parse time, so a `<script src>` in `<head>` crashes on
+  a null element. This applies to both the linked and inlined variants.
+- Offline images resolve through the `data-images` JSON map via
+  `imgSrc()` — data keeps plain URLs and the map holds each unique
+  image's data URI once, instead of duplicating it per launch.
 
 ## Verifying changes
 
@@ -26,3 +49,11 @@
   `launch_cache.json` and never hits the API, so it's safe to run
   repeatedly; `--refresh` forces a fresh fetch.
 - `site/` is generated output and gitignored — never commit it.
+- `node --check static/app.js` validates the JS after front-end edits.
+- After touching the offline build, sanity-check `data-images` in
+  `site/rocket-analytics-offline.html` (it's `{}` in `index.html`).
+- `image-cache/` caches processed images by content of
+  url|size|quality and prunes entries the current build doesn't
+  reference; delete it to force a refetch. It's gitignored locally and
+  persisted between CI runs via `actions/cache` alongside
+  `launch_cache.json`.

@@ -3,14 +3,14 @@
 import json
 from datetime import datetime, timezone
 
-from .config import CACHE_FILE
+from .config import LAUNCH_CACHE_FILE
 
 
 def load_cache(max_age=None):
     """Return cached (upcoming, previous, last_updated), or None.
     If `max_age` (a timedelta) is given, reject caches older than that."""
     try:
-        data = json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        data = json.loads(LAUNCH_CACHE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         print("Warning: Could not load cache file.")
         return None
@@ -37,7 +37,7 @@ def save_cache(upcoming, previous):
     """Save the fetched launches to the cache file; return last_updated."""
     last_updated = datetime.now(timezone.utc).isoformat()
     try:
-        CACHE_FILE.write_text(
+        LAUNCH_CACHE_FILE.write_text(
             json.dumps({
                 "upcoming": upcoming,
                 "previous": previous,

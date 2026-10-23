@@ -31,9 +31,11 @@ jobs:
           cache: pip
       - uses: actions/cache@v6
         with:
-          path: launch_cache.json
-          key: launch-cache-${{ github.run_id }}
-          restore-keys: launch-cache-
+          path: |
+            launch_cache.json
+            image-cache/
+          key: data-cache-${{ github.run_id }}
+          restore-keys: data-cache-
       - run: pip install -r requirements.txt
       # Use max-cache-age to reuse cache if it's less than 5 hours old
       - run: python main.py --max-cache-age 5

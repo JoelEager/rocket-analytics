@@ -8,6 +8,10 @@ const readJson = id => JSON.parse($(id).textContent);
 const LAUNCHES = {upcoming: readJson('data-upcoming'), past: readJson('data-previous')};
 const ENTITIES = readJson('data-entities');
 const STATS = readJson('data-stats');
+// url -> data URI for images embedded in the offline bundle; empty online,
+// where imgSrc passes the original URL straight through.
+const IMAGES = readJson('data-images');
+const imgSrc = url => IMAGES[url] || url;
 
 // Formatting and markup helpers
 const esc = s => String(s).replace(/[&<>"']/g,
@@ -130,7 +134,7 @@ function entityBody(e, fieldDefs, links) {
   if (!e || !e.name) return '';
   const linkHtml = links.filter(([, u]) => u)
     .map(([l, u]) => extLink(l, u)).join(' ');
-  return (e.image ? `<img class="modal-image" src="${esc(e.image)}" alt="">` : '')
+  return (e.image ? `<img class="modal-image" src="${esc(imgSrc(e.image))}" alt="">` : '')
     + `<dl class="modal-details">${fieldRows(e, fieldDefs)}</dl>`
     + (e.description ? `<p class="entity-desc">${esc(e.description)}</p>` : '')
     + (linkHtml ? `<p class="entity-links">${linkHtml}</p>` : '');
@@ -275,7 +279,7 @@ function openModal(d) {
   $('modal-details').innerHTML = fieldRows(d, LAUNCH_FIELDS);
   $('modal-desc').textContent = d.mission_description || '';
   $('modal-patches').innerHTML = (d.mission_patches || [])
-    .map(u => `<img class="patch" src="${esc(u)}" alt="Mission patch">`).join('');
+    .map(u => `<img class="patch" src="${esc(imgSrc(u))}" alt="Mission patch">`).join('');
 
   const statsHtml = dlRows(statRows(d));
   $('modal-stats').innerHTML = statsHtml;

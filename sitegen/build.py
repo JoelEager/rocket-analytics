@@ -1,23 +1,20 @@
-"""Render the site templates and produce the offline bundle."""
+"""Render the site template and copy static assets into site/."""
 
-import re
 import shutil
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-from .config import (APPJS_FILE, BUNDLE_FILE, CHARTJS_FILE, CSS_FILE,
-                     SITE_DIR, STATIC_DIR, TEMPLATES_DIR)
+from .config import (CSS_FILE, JS_FILES, OFFLINE_FILE, SITE_DIR,
+                     STATIC_DIR, TEMPLATES_DIR)
 from .details import collect_entities, launch_detail
+from .offline_bundle import build_offline_bundle
 from .stats import compute_stats
-
-# Script files in load order: app.js depends on Chart being defined first.
-JS_FILES = [CHARTJS_FILE, APPJS_FILE]
 
 # Asset URLs as index.html will see them — relative to site/, matching
 # where the static directory is copied below.
 CSS_HREF = f"{STATIC_DIR.name}/{CSS_FILE.name}"
 JS_SRCS = [f"{STATIC_DIR.name}/{f.name}" for f in JS_FILES]
-BUNDLE_HREF = BUNDLE_FILE.name
+OFFLINE_HREF = OFFLINE_FILE.name
 
 
 def build_context(upcoming, previous, entities, data_updated):
@@ -76,49 +73,9 @@ def build_site(upcoming, previous, data_updated):
     context = build_context(upcoming, previous, entities, data_updated)
     (SITE_DIR / "index.html").write_text(
         template.render(context, css_href=CSS_HREF, js_srcs=JS_SRCS,
-                        bundle_href=BUNDLE_HREF),
+                        offline_href=OFFLINE_HREF),
         encoding="utf-8")
     print(f"Site built in {SITE_DIR}/")
 
-    build_bundle(template, context)
+    build_offline_bundle(template, context)
 
-
-def inline_safe(code):
-    """Escape closing tags so inlined code can't terminate its own element."""
-    return re.sub(r"</(script|style)", r"<\\/\1", code, flags=re.IGNORECASE)
-
-
-# Remote URL fields stripped from the offline bundle's embedded data —
-# nothing the bundle references should need a network connection.
-EXTERNAL_FIELDS = {"image", "infographic", "mission_patches", "profile_image",
-                   "info_url", "wiki_url", "map_url", "links", "mission_links"}
-
-# Context keys holding detail/entity payloads that need scrubbing.
-SCRUB_KEYS = {"upcoming_detail", "previous_detail", "entities"}
-
-
-def scrub_external(value):
-    """Recursively remove remote image and link URLs from detail/entity data."""
-    if isinstance(value, dict):
-        return {k: scrub_external(v) for k, v in value.items()
-                if k not in EXTERNAL_FIELDS}
-    if isinstance(value, list):
-        return [scrub_external(v) for v in value]
-    return value
-
-
-def build_bundle(template, context):
-    """Render the site again with CSS and JS inlined into one HTML file."""
-    try:
-        js = "\n".join(f.read_text(encoding="utf-8") for f in JS_FILES)
-        css = CSS_FILE.read_text(encoding="utf-8")
-    except OSError:
-        print(f"Warning: Skipping {BUNDLE_FILE}.")
-        return
-    offline = {k: scrub_external(v) if k in SCRUB_KEYS else v
-               for k, v in context.items()}
-    bundle = template.render(offline, offline=True,
-                             inline_css=inline_safe(css),
-                             inline_js=inline_safe(js))
-    BUNDLE_FILE.write_text(bundle, encoding="utf-8")
-    print(f"Portable single-file build written to {BUNDLE_FILE}")

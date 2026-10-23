@@ -11,10 +11,19 @@ API_BASE = "https://ll.thespacedevs.com/2.2.0"
 SITE_DIR = Path("site")
 TEMPLATES_DIR = Path("templates")
 STATIC_DIR = Path("static")
-CACHE_FILE = Path("launch_cache.json")
+LAUNCH_CACHE_FILE = Path("launch_cache.json")
 
-# Alternate output: a portable single-file build with all resources inlined.
-BUNDLE_FILE = SITE_DIR / "rocket-analytics-offline.html"
+# Alternate output: a portable offline single-file build with all
+# resources inlined.
+OFFLINE_FILE = SITE_DIR / "rocket-analytics-offline.html"
 CHARTJS_FILE = STATIC_DIR / "chart.js"
 APPJS_FILE = STATIC_DIR / "app.js"
 CSS_FILE = STATIC_DIR / "style.css"
+# Script files in load order: app.js depends on Chart being defined first.
+JS_FILES = [CHARTJS_FILE, APPJS_FILE]
+
+# Images embedded in the offline build are downscaled to display size.
+PATCH_IMAGE_PX = 128   # mission patches render at 72px
+ROCKET_IMAGE_PX = 640  # rocket photos render full-width in the modal
+IMAGE_QUALITY = 65     # WebP quality for embedded images
+IMAGE_CACHE_DIR = Path("image-cache")
