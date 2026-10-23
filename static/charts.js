@@ -240,16 +240,19 @@ function donutChart(pane, fullNames, group) {
 const scopedData = (allKey, yearKey) => year =>
   year === 'all' ? STATS[allKey] : STATS.yearly[year]?.[yearKey] ?? {};
 
-// Rocket name -> manufacturer country code, from the stats build.
+// Rocket name and manufacturer abbrev -> country code, from the stats
+// build. Which map applies depends on what the chart's labels are.
 const ROCKET_COUNTRIES = STATS.rocket_countries || {};
+const MFR_COUNTRIES = STATS.manufacturer_countries || {};
 
-// Restrict a {name: counts} dataset to rockets whose manufacturer country
-// is (or, when negated, is not) among the selected codes. An empty
-// selection filters nothing.
-const applyCountryFilter = (data, sel) => {
+// Restrict a {name: counts} dataset to labels whose country is (or, when
+// negated, is not) among the selected codes. An empty selection filters
+// nothing. map resolves each label to a code — rockets by name,
+// manufacturers by abbrev.
+const applyCountryFilter = (data, sel, map = ROCKET_COUNTRIES) => {
   if (!sel || !sel.codes.size) return data;
   return Object.fromEntries(Object.entries(data)
-    .filter(([name]) => sel.codes.has(ROCKET_COUNTRIES[name]) !== sel.negate));
+    .filter(([name]) => sel.codes.has(map[name]) !== sel.negate));
 };
 
 // Donut defs share the bar charts' categorized rows but need flat
@@ -282,9 +285,11 @@ const CHART_DEFS = {
     label: 'By manufacturer',
     kind: 'Bars',
     inline: true,
-    filters: ['year'],
+    filters: ['year', 'country'],
     unit: 'launches',
-    data: s => scopedData('by_manufacturer', 'manufacturers')(s.year),
+    data: s => applyCountryFilter(
+      scopedData('by_manufacturer', 'manufacturers')(s.year), s.country,
+      MFR_COUNTRIES),
     mount: pane => stackedBarChart(pane.querySelector('canvas'), STATS.manufacturer_names),
   },
   'by-country': {
@@ -307,9 +312,10 @@ const CHART_DEFS = {
   'by-manufacturer-donut': {
     label: 'By manufacturer',
     kind: 'Donut',
-    filters: ['year', 'success'],
-    data: s => donutSlices(
+    filters: ['year', 'country', 'success'],
+    data: s => applyCountryFilter(donutSlices(
       scopedData('by_manufacturer', 'manufacturers')(s.year), s.successOnly),
+      s.country, MFR_COUNTRIES),
     mount: pane => donutChart(pane, STATS.manufacturer_names, 'Manufacturer'),
   },
   'by-country-donut': {

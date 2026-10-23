@@ -61,8 +61,10 @@ def compute_stats(rockets, previous):
     # Chart labels use the manufacturer abbreviation; keep the full name
     # around so the frontend can show it too.
     manufacturer_names = {}
-    # Rocket name -> manufacturer country, for the chart's country filter.
+    # Rocket name and manufacturer abbrev -> manufacturer country code,
+    # for the charts' country filters.
     rocket_countries = {}
+    manufacturer_countries = {}
     # Tally fetched launches per calendar year. Each year gets a
     # name -> category dict per chart grouping: rockets, manufacturers,
     # and countries.
@@ -111,6 +113,8 @@ def compute_stats(rockets, previous):
             label = r.get("manufacturer_abbrev") or r["manufacturer"]
             pools.append(mfr_pool[label])
             manufacturer_names[label] = r["manufacturer"]
+            if r.get("manufacturer_country"):
+                manufacturer_countries[label] = r["manufacturer_country"]
         if r.get("manufacturer_country"):
             pools.append(country_pool[r["manufacturer_country"]])
         for pool in pools:
@@ -149,4 +153,5 @@ def compute_stats(rockets, previous):
         "manufacturer_names": manufacturer_names,
         "country_names": {code: country_name(code) for code in country_codes},
         "rocket_countries": rocket_countries,
+        "manufacturer_countries": manufacturer_countries,
     }
