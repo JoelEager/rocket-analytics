@@ -9,8 +9,7 @@ from io import BytesIO
 import requests
 from PIL import Image
 
-from .config import (CSS_FILE, IMAGE_CACHE_DIR, IMAGE_QUALITY, JS_FILES,
-                     OFFLINE_FILE, PATCH_IMAGE_PX, ROCKET_IMAGE_PX)
+from .config import CSS_FILE, IMAGE_CACHE_DIR, IMAGE_QUALITY, JS_FILES, OFFLINE_FILE, PATCH_IMAGE_PX, ROCKET_IMAGE_PX
 
 
 def inline_safe(code):
@@ -30,8 +29,7 @@ SCRUB_KEYS = {"upcoming_detail", "previous_detail", "entities"}
 def scrub_external(value):
     """Recursively remove remote image and link URLs from detail/entity data."""
     if isinstance(value, dict):
-        return {k: scrub_external(v) for k, v in value.items()
-                if k not in EXTERNAL_FIELDS}
+        return {k: scrub_external(v) for k, v in value.items() if k not in EXTERNAL_FIELDS}
     if isinstance(value, list):
         return [scrub_external(v) for v in value]
     return value
@@ -49,36 +47,32 @@ def fetch_data_uri(url, max_px):
     except Exception as e:
         print(f"Warning: Failed to fetch image from {url}: {e}")
         return None
-    return ("data:image/webp;base64,"
-            + base64.b64encode(buf.getvalue()).decode())
+    return "data:image/webp;base64," + base64.b64encode(buf.getvalue()).decode()
 
 
 def image_cache_path(url, max_px):
-    """Cache file for a processed image. The key covers every input that
-    affects the output, so new size/quality settings invalidate old files."""
+    """Cache file for a processed image. The key covers every input that affects the output,
+    so new size/quality settings invalidate old files."""
     key = hashlib.sha1(f"{url}|{max_px}|{IMAGE_QUALITY}".encode()).hexdigest()
     return IMAGE_CACHE_DIR / f"{key}.txt"
 
 
 def embed_images(urls_px):
-    """Return {url: data_uri}. Results are cached on disk, so repeat
-    builds only download and compress images that are new."""
+    """Return {url: data_uri}. Results are cached on disk, so repeat builds only download
+    and compress images that are new."""
     images = {}
     misses = {}
     for url, px in urls_px.items():
         try:
-            images[url] = image_cache_path(url, px).read_text(
-                encoding="utf-8")
+            images[url] = image_cache_path(url, px).read_text(encoding="utf-8")
         except OSError:
             misses[url] = px
 
     if misses:
-        print(f"Fetching {len(misses)} images "
-              f"({len(images)} already cached)...")
+        print(f"Need to fetch {len(misses)} images ({len(images)} already cached)")
         IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
         with ThreadPoolExecutor(max_workers=8) as pool:
-            futures = {pool.submit(fetch_data_uri, url, px): url
-                       for url, px in misses.items()}
+            futures = {pool.submit(fetch_data_uri, url, px): url for url, px in misses.items()}
             for fut in as_completed(futures):
                 uri = fut.result()
                 if not uri:
@@ -87,8 +81,7 @@ def embed_images(urls_px):
                 url = futures[fut]
                 images[url] = uri
                 try:
-                    image_cache_path(url, misses[url]).write_text(
-                        uri, encoding="utf-8")
+                    image_cache_path(url, misses[url]).write_text(uri, encoding="utf-8")
                 except OSError:
                     pass
 
@@ -105,18 +98,17 @@ def embed_images(urls_px):
             except OSError:
                 pass
     if pruned:
-        print(f"Pruned {pruned} stale image cache files.")
+        print(f"Pruned {pruned} stale image cache files")
     return images
 
 
 def offline_context(context):
-    """Offline variant of the context: remote URLs stripped, except mission
-    patches and rocket images, which are embedded as data URIs."""
+    """Offline variant of the context: remote URLs stripped, except mission patches and rocket
+    images, which are embedded as data URIs."""
     # Collect the images worth inlining before scrub_external removes them.
     wanted = {}
     for d in context["upcoming_detail"] + context["previous_detail"]:
-        wanted.update((u, PATCH_IMAGE_PX)
-                      for u in d.get("mission_patches") or [])
+        wanted.update((u, PATCH_IMAGE_PX) for u in d.get("mission_patches") or [])
     for rocket in context["entities"]["rockets"].values():
         if rocket.get("image"):
             wanted[rocket["image"]] = ROCKET_IMAGE_PX
@@ -128,13 +120,11 @@ def offline_context(context):
     print(f"Embedded {len(images)}/{len(wanted)} images "
           f"({sum(len(u) for u in images.values()) // 1024} KB after compression)")
 
-    offline = {k: scrub_external(v) if k in SCRUB_KEYS else v
-               for k, v in context.items()}
+    offline = {k: scrub_external(v) if k in SCRUB_KEYS else v for k, v in context.items()}
     # Re-add just the embedded images to the scrubbed structures.
     for group in ("upcoming_detail", "previous_detail"):
         for src, dst in zip(context[group], offline[group]):
-            patches = [u for u in src.get("mission_patches") or []
-                       if u in images]
+            patches = [u for u in src.get("mission_patches") or [] if u in images]
             if patches:
                 dst["mission_patches"] = patches
     for rid, rocket in context["entities"]["rockets"].items():
@@ -145,8 +135,7 @@ def offline_context(context):
 
 
 def build_offline_bundle(template, context):
-    """Render the site again as one offline HTML file with CSS, JS, and
-    key images inlined."""
+    """Render the site again as one offline HTML file with CSS, JS, and key images inlined."""
     try:
         js = "\n".join(f.read_text(encoding="utf-8") for f in JS_FILES)
         css = CSS_FILE.read_text(encoding="utf-8")
@@ -154,8 +143,6 @@ def build_offline_bundle(template, context):
         print(f"Warning: Skipping {OFFLINE_FILE}.")
         return
     offline = offline_context(context)
-    html = template.render(offline, offline=True,
-                           inline_css=inline_safe(css),
-                           inline_js=inline_safe(js))
+    html = template.render(offline, offline=True, inline_css=inline_safe(css), inline_js=inline_safe(js))
     OFFLINE_FILE.write_text(html, encoding="utf-8")
     print(f"Offline single-file build written to {OFFLINE_FILE}")

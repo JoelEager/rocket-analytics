@@ -7,8 +7,8 @@ from .config import LAUNCH_CACHE_FILE
 
 
 def load_cache(max_age=None):
-    """Return cached (upcoming, previous, last_updated), or None.
-    If `max_age` (a timedelta) is given, reject caches older than that."""
+    """Return cached (upcoming, previous, last_updated), or None. If `max_age` (a timedelta) is given,
+    reject caches older than that."""
     try:
         data = json.loads(LAUNCH_CACHE_FILE.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -38,13 +38,8 @@ def save_cache(upcoming, previous):
     last_updated = datetime.now(timezone.utc).isoformat()
     try:
         LAUNCH_CACHE_FILE.write_text(
-            json.dumps({
-                "upcoming": upcoming,
-                "previous": previous,
-                "last_updated": last_updated,
-            }, indent=2),
-            encoding="utf-8",
-        )
+            json.dumps({"upcoming": upcoming, "previous": previous, "last_updated": last_updated}, indent=2),
+            encoding="utf-8")
         print("Cache saved successfully.")
     except OSError:
         print("Warning: Could not save cache file.")

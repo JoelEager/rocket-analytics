@@ -11,6 +11,12 @@
 - Skip comments that merely restate the code.
 - Jinja comments use `{# ... #}` so they don't reach the rendered HTML.
 
+## Python style
+
+- Lines can run to ~120 characters. Prefer one long line over breaking a
+  call or expression across continuation lines when it fits — wrap only
+  what genuinely exceeds the limit.
+
 ## README
 
 - Keep it friendly to a novice software engineer. It includes a
