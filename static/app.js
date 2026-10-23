@@ -383,6 +383,8 @@ const charts = {
   'chart-rocket': pagedBarChart('byRocket', STATS.by_rocket),
   'chart-manufacturer': pagedBarChart('byManufacturer', STATS.by_manufacturer,
                                       STATS.manufacturer_names),
+  'chart-country': pagedBarChart('byCountry', STATS.by_country,
+                                 STATS.country_names),
 };
 const activeChart = () => charts[
   document.querySelector('#chart-tabs .tab.active').dataset.pane];
@@ -422,13 +424,15 @@ wireTabs('#chart-tabs .tab', '.chart-pane',
   btn => { charts[btn.dataset.pane].chart.resize(); refreshPager(); });
 
 // Scope buttons: 'all' uses the lifetime stats; each year button swaps in
-// that year's per-rocket / per-manufacturer counts.
+// that year's per-rocket / per-manufacturer / per-country counts.
 const SCOPE_DATA = {
   all: {'chart-rocket': STATS.by_rocket,
-        'chart-manufacturer': STATS.by_manufacturer},
+        'chart-manufacturer': STATS.by_manufacturer,
+        'chart-country': STATS.by_country},
   ...Object.fromEntries(Object.entries(STATS.yearly).map(([year, d]) =>
     [year, {'chart-rocket': d.rockets,
-            'chart-manufacturer': d.manufacturers}])),
+            'chart-manufacturer': d.manufacturers,
+            'chart-country': d.countries}])),
 };
 const scopeBtns = [...document.querySelectorAll('#chart-scope .seg-btn')];
 scopeBtns.forEach(btn => btn.addEventListener('click', () => {

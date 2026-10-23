@@ -59,6 +59,7 @@
         <div class="tabs" id="chart-tabs">
           <button class="tab active" data-pane="chart-rocket">By rocket</button>
           <button class="tab" data-pane="chart-manufacturer">By manufacturer</button>
+          <button class="tab" data-pane="chart-country">By country</button>
           <div class="seg pager" id="chart-pager" hidden>
             <button class="seg-btn" id="pager-prev" aria-label="Previous page">‹</button>
             <select class="pager-select" id="pager-select" aria-label="Page"></select>
@@ -71,6 +72,9 @@
         </div>
         <div class="chart-pane" id="chart-manufacturer" hidden>
           <canvas id="byManufacturer"></canvas>
+        </div>
+        <div class="chart-pane" id="chart-country" hidden>
+          <canvas id="byCountry"></canvas>
         </div>
       </div>
     </section>

@@ -85,6 +85,7 @@ def rocket_detail(config):
         "name": config.get("full_name") or config.get("name"),
         "manufacturer": manufacturer.get("name"),
         "manufacturer_abbrev": manufacturer.get("abbrev"),
+        "manufacturer_country": manufacturer.get("country_code"),
         "manufacturer_id": manufacturer.get("id"),
         **pull(config, ROCKET_FIELDS),
     }
