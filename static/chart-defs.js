@@ -2,7 +2,7 @@
 // comment above it spells out the def contract), plus the data-slicing
 // helpers the defs' data() functions share. A classic script — uses
 // STATS from app.js and the factories/views from chart-factories.js;
-// load order is JS_FILES in sitegen/config.py.
+// load order is JS_FILES in pipeline/config.py.
 // Scope lookup shared by chart defs: 'all' reads the lifetime stats key,
 // a year reads that year's bucket (missing keys -> empty chart; site
 // charts have no 'all' dataset at all).

@@ -4,7 +4,7 @@
 // build work — it shares app.js's top-level bindings ($, esc, STATS,
 // wireTabs, showModal, closeModal) plus the factories/views and defs
 // from the other chart files; load order is JS_FILES in
-// sitegen/config.py.
+// pipeline/config.py.
 // Segmented scope control over a `scopes` value list — 'all' labels as
 // 'All time', anything else is a year. Reports the choice via onChange;
 // hides itself when there's only one scope to pick.

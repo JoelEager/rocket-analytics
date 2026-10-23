@@ -23,7 +23,7 @@
   "Project layout" section with a file-by-file tour, an ASCII data-flow
   diagram, and a suggested reading order through the pipeline.
 - Keep it accurate when refactoring: path references (e.g. constants in
-  `sitegen/config.py`), module names, and usage examples must match the
+  `pipeline/config.py`), module names, and usage examples must match the
   actual code.
 - Wrap prose at 120 characters. Never split links, code spans, or
   hyphenated words across a line break — textwrap's defaults do this;
@@ -33,7 +33,7 @@
 
 - The build produces two outputs; qualify "bundle" wording as the
   *offline* build wherever it would otherwise be ambiguous
-  (`sitegen/offline_bundle.py`, `OFFLINE_FILE`, `offline_href`).
+  (`pipeline/offline_bundle.py`, `OFFLINE_FILE`, `offline_href`).
 - Directories use kebab case (`image-cache/`).
 
 ## Front end
@@ -44,7 +44,7 @@
   CHART_DEFS registry and its data-slicing helpers), and
   `static/charts.js` (filter controls, inline chart box, explorer
   modal). All are classic scripts — not modules — sharing top-level
-  bindings, loaded in `JS_FILES` order from `sitegen/config.py` with
+  bindings, loaded in `JS_FILES` order from `pipeline/config.py` with
   charts.js last. `templates/index.html` is markup, and shared Jinja
   macros (e.g. `modal()`) live in `templates/macros.html`.
 - Scripts must render at the END of `<body>`: app.js reads the `data-*`

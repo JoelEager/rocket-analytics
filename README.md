@@ -18,21 +18,21 @@ python main.py --max-cache-age 5  # refetch if the cache is over 5 hours old
 Fetched launch data is cached in `launch-cache.json` (git ignored) and reused regardless of age unless `--refresh` or
 `--max-cache-age` says otherwise, so repeated builds during development don't re-hit the rate-limited API. If a fetch
 fails, the script falls back to the stale cache rather than failing the build. The number of pages fetched per endpoint
-is set by `PAST_LAUNCH_PAGES` and `UPCOMING_LAUNCH_PAGES` at the top of `sitegen/config.py` (100 launches per page).
+is set by `PAST_LAUNCH_PAGES` and `UPCOMING_LAUNCH_PAGES` at the top of `pipeline/config.py` (100 launches per page).
 
 Open `site/index.html` in a browser to preview.
 
 Each build also produces `site/rocket-analytics-offline.html`, a portable single-file version of the site with the
 stylesheet and all JavaScript inlined — it can be opened in any browser without an internet connection. Mission
 patches and rocket images are downloaded, downscaled to display size, and embedded as WebP data URIs in a shared
-`data-images` map (`PATCH_IMAGE_PX`, `ROCKET_IMAGE_PX`, and `IMAGE_QUALITY` in `sitegen/config.py` control the
+`data-images` map (`PATCH_IMAGE_PX`, `ROCKET_IMAGE_PX`, and `IMAGE_QUALITY` in `pipeline/config.py` control the
 size/quality tradeoff); all other remote URLs and external links are stripped out. Processed images are cached in
 `image-cache/` (gitignored) so repeat builds don't re-download them. The Chart.js library is vendored
 as `static/chart-library.min.js` and used by both versions of the site; the offline build is skipped if a static file is missing.
 
 ## How it works
 
-- `main.py` drives the `sitegen` package, which fetches upcoming and previous launches, computes stats, and renders
+- `main.py` drives the `pipeline` package, which fetches upcoming and previous launches, computes stats, and renders
   `templates/index.html` into `site/` — once as `index.html` and once as `rocket-analytics-offline.html`, a
   self-contained single-file build with all resources inlined to work offline.
 - `static/` is copied to `site/static/`.
@@ -60,20 +60,20 @@ LL2 API ──fetch──> launch dicts ──curate──> details + entities +
 
 - `main.py` — command-line entry point. Decides between cached data and a fresh fetch, then hands everything to the
   builder.
-- `sitegen/config.py` — all tunables and file locations in one place (page counts, API base URL, directory paths).
+- `pipeline/config.py` — all tunables and file locations in one place (page counts, API base URL, directory paths).
   Start here to change how much data is fetched or where things live.
-- `sitegen/api.py` — paginated requests to the Launch Library 2 API with retries. The API returns 100 launches per
+- `pipeline/api.py` — paginated requests to the Launch Library 2 API with retries. The API returns 100 launches per
   page plus a `next` link.
-- `sitegen/launch_cache.py` — reads/writes `launch-cache.json` so development builds don't re-hit the rate-limited
+- `pipeline/launch_cache.py` — reads/writes `launch-cache.json` so development builds don't re-hit the rate-limited
   API.
-- `sitegen/details.py` — selects which API fields the site actually uses. The API returns very large launch objects;
+- `pipeline/details.py` — selects which API fields the site actually uses. The API returns very large launch objects;
   the `*_FIELDS` specs and `pick`/`pull` helpers copy just the needed fields into flat dicts.
-- `sitegen/stats.py` — aggregates launch counts per rocket, per manufacturer, per country, and per year for the
+- `pipeline/stats.py` — aggregates launch counts per rocket, per manufacturer, per country, and per year for the
   charts. Yearly bars split into orbital, suborbital, and failed segments; the lifetime 'all time' bars split into
   success and failed only, since the API has no lifetime orbit breakdown.
-- `sitegen/build.py` — collects shared entities (rockets, providers, pads, agencies), renders `templates/index.html`
+- `pipeline/build.py` — collects shared entities (rockets, providers, pads, agencies), renders `templates/index.html`
   into `site/`, and hands off to the offline build.
-- `sitegen/offline_bundle.py` — the offline single-file build: downloads and downscales mission patch / rocket images
+- `pipeline/offline_bundle.py` — the offline single-file build: downloads and downscales mission patch / rocket images
   into data URIs, strips other remote URLs, and re-renders the template with everything inlined.
 - `templates/index.html` — the site's markup as one Jinja template; all charts and tables are driven by the context
   dict built in `build.py`. Reusable table and modal markup lives in `templates/macros.html`, imported at the top.

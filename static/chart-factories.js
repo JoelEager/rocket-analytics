@@ -3,7 +3,7 @@
 // used by the defs in chart-defs.js. A classic script, not a module,
 // so file:// previews and the offline build work — it shares app.js's
 // esc() and the global Chart from chart-library.min.js; load order is
-// JS_FILES in sitegen/config.py.
+// JS_FILES in pipeline/config.py.
 Chart.defaults.color = '#9ca3af';
 Chart.defaults.borderColor = '#1f2937';
 

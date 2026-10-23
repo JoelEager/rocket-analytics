@@ -1,4 +1,4 @@
-"""Sanity checks for sitegen.stats, run against the real launch cache.
+"""Sanity checks for pipeline.stats, run against the real launch cache.
 
 These pin the chart data-shape invariants (category keys, per-grouping
 totals, the launched-rockets gate, the oldest-year drop rule) so a
@@ -10,9 +10,9 @@ import json
 import unittest
 from pathlib import Path
 
-from sitegen.config import PAGE_SIZE, PAST_LAUNCH_PAGES
-from sitegen.details import collect_entities
-from sitegen.stats import compute_stats
+from pipeline.config import PAGE_SIZE, PAST_LAUNCH_PAGES
+from pipeline.details import collect_entities
+from pipeline.stats import compute_stats
 
 CACHE = Path(__file__).resolve().parents[1] / "launch-cache.json"
 

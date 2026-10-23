@@ -3,10 +3,10 @@
 import argparse
 from datetime import timedelta
 
-from sitegen.api import fetch_launches
-from sitegen.build import build_site
-from sitegen.launch_cache import load_cache, save_cache
-from sitegen.config import PAST_LAUNCH_PAGES, UPCOMING_LAUNCH_PAGES
+from pipeline.api import fetch_launches
+from pipeline.build import build_site
+from pipeline.launch_cache import load_cache, save_cache
+from pipeline.config import PAST_LAUNCH_PAGES, UPCOMING_LAUNCH_PAGES
 
 
 def main():
