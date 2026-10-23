@@ -10,7 +10,7 @@ from pathlib import Path
 import requests
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-PAST_LAUNCH_PAGES = 10
+PAST_LAUNCH_PAGES = 12
 UPCOMING_LAUNCH_PAGES = 2
 PAGE_SIZE = 100
 MAX_ATTEMPTS = 2
