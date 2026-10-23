@@ -76,13 +76,6 @@
   {% else %}
   <link rel="stylesheet" href="{{ css_href }}">
   {% endif %}
-  {% if inline_js %}
-  <script>{{ inline_js | safe }}</script>
-  {% else %}
-  {% for src in js_srcs %}
-  <script src="{{ src }}"></script>
-  {% endfor %}
-  {% endif %}
 </head>
 <body>
   <header>
@@ -201,5 +194,14 @@
   <script type="application/json" id="data-entities">{{ entities | tojson }}</script>
   <script type="application/json" id="data-stats">{{ stats | tojson }}</script>
 
+  {# Scripts run at the end of body so the DOM — including the JSON data
+     blocks above — is fully parsed when app.js executes. #}
+  {% if inline_js %}
+  <script>{{ inline_js | safe }}</script>
+  {% else %}
+  {% for src in js_srcs %}
+  <script src="{{ src }}"></script>
+  {% endfor %}
+  {% endif %}
 </body>
 </html>
