@@ -5,37 +5,41 @@
 // wireTabs, showModal, closeModal) plus the factories/views and defs
 // from the other chart files; load order is JS_FILES in
 // sitegen/config.py.
-// Segmented 'All time' / per-year control; reports the chosen scope via
-// onChange. Hides itself when there's no yearly data to switch between.
-function makeScopeSeg(scope, onChange) {
+// Segmented scope control over a `scopes` value list — 'all' labels as
+// 'All time', anything else is a year. Reports the choice via onChange;
+// hides itself when there's only one scope to pick.
+function makeScopeSeg(scope, onChange, scopes) {
   const el = document.createElement('div');
   el.className = 'seg';
   const btns = [];
   const activate = v =>
     btns.forEach(b => b.classList.toggle('active', b.dataset.scope === v));
-  // 'all' first, then years oldest-to-newest (yearly keys arrive
-  // newest-first from the stats build).
-  [['all', 'All time'], ...Object.keys(STATS.yearly).reverse().map(y => [y, y])]
-    .forEach(([v, label]) => {
-      const b = document.createElement('button');
-      b.className = 'seg-btn';
-      b.dataset.scope = v;
-      b.textContent = label;
-      b.addEventListener('click', () => { activate(v); onChange(v); });
-      btns.push(b);
-      el.append(b);
-    });
+  scopes.forEach(v => {
+    const b = document.createElement('button');
+    b.className = 'seg-btn';
+    b.dataset.scope = v;
+    b.textContent = v === 'all' ? 'All time' : v;
+    b.addEventListener('click', () => { activate(v); onChange(v); });
+    btns.push(b);
+    el.append(b);
+  });
   activate(scope);
-  el.hidden = !Object.keys(STATS.yearly).length;
+  el.hidden = scopes.length <= 1;
   return el;
 }
+
+// Scopes every def offers: 'all' first, then years oldest-to-newest
+// (yearly keys arrive newest-first from the stats build).
+const ALL_SCOPES = ['all', ...Object.keys(STATS.yearly).reverse()];
 
 // Multi-select country picker with an Exclude toggle: a button opens a
 // checkbox list so a dozen-plus options don't crowd the slot header.
 // The button summarizes the live selection ("Country: not USA, CHN" /
 // "Country: all but 5") and carries an accent while a filter is
 // applied. Mutates sel ({codes, negate}) in place, then fires onChange.
-function makeCountryFilter(sel, onChange) {
+// `map` (label -> code, from the def's countryMap) decides which codes
+// are worth listing — only ones that can appear among this grouping.
+function makeCountryFilter(sel, onChange, map) {
   const wrap = document.createElement('div');
   wrap.className = 'country-filter';
   const btn = document.createElement('button');
@@ -73,9 +77,9 @@ function makeCountryFilter(sel, onChange) {
   });
   negRow.append(negCb, ' Exclude selected');
   pop.append(negRow);
-  // Only countries that actually appear among rockets are worth
+  // Only codes that actually appear among this grouping are worth
   // listing; names come from the stats build's country_names map.
-  const codes = [...new Set(Object.values(ROCKET_COUNTRIES))]
+  const codes = [...new Set(Object.values(map))]
     .sort((a, b) => (STATS.country_names[a] || a)
       .localeCompare(STATS.country_names[b] || b));
   const countryCbs = [];
@@ -117,47 +121,112 @@ document.addEventListener('click', e => {
   });
 });
 
+// Boolean filter toggles share one builder; `key` is the filters-state
+// property the checkbox flips.
+const makeToggle = (text, key) => (slot, reload) => {
+  const label = document.createElement('label');
+  label.className = 'success-toggle';
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = slot.filters[key];
+  cb.addEventListener('change', () => {
+    slot.filters[key] = cb.checked;
+    reload();
+  });
+  label.append(cb, ` ${text}`);
+  return label;
+};
+
 // Filter builders keyed by the names in each def's `filters` list; each
 // returns a control that updates the slot's filter state on change.
 const FILTER_BUILDERS = {
-  year: (slot, reload) => makeScopeSeg(slot.filters.year, year => {
-    slot.filters.year = year;
-    reload();
-  }),
-  country: (slot, reload) => makeCountryFilter(slot.filters.country, reload),
-  // 'Successes only' — donut defs can't show the failed segment, so
-  // this toggle swaps their dataset to success counts instead.
-  success: (slot, reload) => {
-    const label = document.createElement('label');
-    label.className = 'success-toggle';
-    const cb = document.createElement('input');
-    cb.type = 'checkbox';
-    cb.checked = slot.filters.successOnly;
-    cb.addEventListener('change', () => {
-      slot.filters.successOnly = cb.checked;
+  year: (slot, reload) => {
+    // A stale scope (a year that isn't in the data) resets to 'all'.
+    if (!ALL_SCOPES.includes(slot.filters.year))
+      slot.filters.year = 'all';
+    return makeScopeSeg(slot.filters.year, year => {
+      slot.filters.year = year;
       reload();
-    });
-    label.append(cb, ' Successes only');
-    return label;
+    }, ALL_SCOPES);
   },
-  // Dropdown of the def's entities for trend charts. A stale entity
-  // from a previous def in this slot resets to the def's defaultEntity
-  // (the most-launched one) rather than the alphabetically first entry.
+  country: (slot, reload) => makeCountryFilter(slot.filters.country,
+    reload, CHART_DEFS[slot.defId].countryMap ?? ROCKET_COUNTRIES),
+  // 'Successes only' — donut defs can't show the failed segment, so
+  // this toggle swaps their dataset to success counts instead. Trends
+  // share it for the same reason.
+  success: makeToggle('Successes only', 'successOnly'),
+  // 'Cumulative' turns a trend's per-year counts into a running total.
+  cumulative: makeToggle('Cumulative', 'cumulative'),
+  // Multi-select entity picker for trend charts: a button opens a
+  // checkbox popover (reuses the country picker's styles), one line
+  // per entity. filters.entities is a Set that can never empty — the
+  // last checked box refuses to uncheck — since a trend with no series
+  // would render blank. Stale picks from a previous def in this slot
+  // are pruned, falling back to the def's defaultEntity.
   entity: (slot, reload) => {
     const def = CHART_DEFS[slot.defId];
     const list = def.entities();
-    if (!list.some(([v]) => v === slot.filters.entity))
-      slot.filters.entity = def.defaultEntity ?? list[0]?.[0];
-    const select = document.createElement('select');
-    select.className = 'chart-pick';
-    select.innerHTML = list.map(([v, label]) =>
-      `<option value="${esc(v)}">${esc(label)}</option>`).join('');
-    select.value = slot.filters.entity;
-    select.addEventListener('change', () => {
-      slot.filters.entity = select.value;
-      reload();
+    const valid = new Set(list.map(([v]) => v));
+    const nameOf = new Map(list);
+    const sel = slot.filters.entities = new Set(
+      [...slot.filters.entities].filter(v => valid.has(v)));
+    const fallback = () => def.defaultEntity ?? list[0][0];
+    if (!sel.size) sel.add(fallback());
+    const wrap = document.createElement('div');
+    wrap.className = 'country-filter has-sel';
+    const btn = document.createElement('button');
+    btn.className = 'chart-pick';
+    btn.type = 'button';
+    const pop = document.createElement('div');
+    pop.className = 'country-pop';
+    pop.hidden = true;
+    const label = () => {
+      const names = [...sel].map(v => nameOf.get(v));
+      btn.textContent = names.length <= 2 ? names.join(', ')
+        : `${names[0]} +${names.length - 1}`;
+      btn.title = names.join(', ');
+    };
+    const emit = () => { label(); reload(); };
+    const head = document.createElement('div');
+    head.className = 'country-pop-head';
+    const reset = document.createElement('button');
+    reset.className = 'country-clear';
+    reset.type = 'button';
+    reset.textContent = 'Reset';
+    head.append('Entities', reset);
+    pop.append(head);
+    const cbs = new Map();
+    for (const [v, name] of list) {
+      const row = document.createElement('label');
+      row.className = 'country-row';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = sel.has(v);
+      cb.addEventListener('change', () => {
+        // The chart must keep at least one series.
+        if (!cb.checked && sel.size === 1) {
+          cb.checked = true;
+          return;
+        }
+        cb.checked ? sel.add(v) : sel.delete(v);
+        emit();
+      });
+      row.append(cb, name);
+      pop.append(row);
+      cbs.set(v, cb);
+    }
+    // Reset returns to just the def's default entity — the selection
+    // can't be empty, so 'Clear'-all semantics don't apply here.
+    reset.addEventListener('click', () => {
+      sel.clear();
+      sel.add(fallback());
+      cbs.forEach((cb, v) => { cb.checked = sel.has(v); });
+      emit();
     });
-    return select;
+    btn.addEventListener('click', () => { pop.hidden = !pop.hidden; });
+    label();
+    wrap.append(btn, pop);
+    return wrap;
   },
 };
 
@@ -237,7 +306,7 @@ $('chart-scope').append(makeScopeSeg('all', year => {
   for (const pane in charts)
     charts[pane].inst.setData(charts[pane].def.data({year}));
   refreshPager();
-}));
+}, ALL_SCOPES));
 refreshPager();
 
 // Chart explorer modal: one or two independent slots, each with its own
@@ -248,13 +317,16 @@ const slotsEl = $('chart-slots');
 const splitBtn = $('split-btn');
 let slots = [];
 
-// A slot's filter state: year scope plus the country picker's
-// {codes, negate} selection. cloneFilters copies it so a split slot's
-// toggles don't write into its sibling's state.
+// A slot's filter state: year scope, the country picker's
+// {codes, negate} selection, the boolean toggles, and the trend
+// entity multi-pick Set. cloneFilters deep-copies the Sets so a split
+// slot's toggles don't write into its sibling's state.
 const freshFilters = year => ({year,
-  country: {codes: new Set(), negate: false}, successOnly: false});
+  country: {codes: new Set(), negate: false}, successOnly: false,
+  cumulative: false, entities: new Set()});
 const cloneFilters = f => ({...f,
-  country: {codes: new Set(f.country.codes), negate: f.country.negate}});
+  country: {codes: new Set(f.country.codes), negate: f.country.negate},
+  entities: new Set(f.entities)});
 
 function slotPager(slot) {
   const wrap = slot.el.querySelector('.pager');
@@ -278,7 +350,7 @@ function reloadSlot(slot) {
 // defs like the donut replace the pane's contents with their own
 // layout, so a leftover canvas/table would linger otherwise. Controls
 // are built before data() runs so they can seed filter defaults (e.g.
-// the entity picker's first entry).
+// the entity picker's default selection).
 function mountSlot(slot) {
   const def = CHART_DEFS[slot.defId];
   slot.inst?.chart.destroy();
@@ -309,9 +381,14 @@ function layoutSlots() {
 function syncAxes() {
   const units = slots.map(s => CHART_DEFS[s.defId].unit);
   const shared = slots.length === 2 && units[0] && units[0] === units[1];
+  // Defs whose data rows aren't {label: count} (multi-series trends)
+  // provide rowMax to say what one row contributes to the bound.
   const max = shared
-    ? Math.max(0, ...slots.flatMap(s =>
-        Object.values(CHART_DEFS[s.defId].data(s.filters)).map(rowTotal)))
+    ? Math.max(0, ...slots.flatMap(s => {
+        const def = CHART_DEFS[s.defId];
+        const bound = def.rowMax ?? rowTotal;
+        return Object.values(def.data(s.filters)).map(bound);
+      }))
     : 0;
   slots.forEach(s => {
     // Non-cartesian charts (the donuts) have no scales.y to sync.
@@ -330,6 +407,7 @@ function addSlot(defId, filters) {
       <span class="slot-kind"></span>
       <select class="chart-pick" aria-label="Chart"></select>
       <div class="slot-filters"></div>
+      <button class="slot-export" type="button" aria-label="Download chart as PNG" title="Download as PNG">↓</button>
       <button class="slot-close" type="button" aria-label="Remove chart">&times;</button>
     </div>
     <div class="chart-pane"><canvas></canvas></div>
@@ -371,11 +449,33 @@ function addSlot(defId, filters) {
   syncKind();
   el.querySelector('.slot-close')
     .addEventListener('click', () => removeSlot(slot));
+  el.querySelector('.slot-export')
+    .addEventListener('click', () => exportPng(slot));
   slot.refreshPager = slotPager(slot);
   slotsEl.append(el);
   slots.push(slot);
   mountSlot(slot);
   layoutSlots();
+}
+
+// Download the slot's chart as a PNG. Chart.js draws on a transparent
+// canvas, so the frame is composited over the slot's surface color —
+// otherwise the image reads badly on light backgrounds.
+function exportPng(slot) {
+  const src = slot.inst.chart.canvas;
+  const out = document.createElement('canvas');
+  out.width = src.width;
+  out.height = src.height;
+  const ctx = out.getContext('2d');
+  const bg = getComputedStyle(slot.el).backgroundColor;
+  ctx.fillStyle = bg === 'rgba(0, 0, 0, 0)'
+    ? getComputedStyle(document.body).backgroundColor : bg;
+  ctx.fillRect(0, 0, out.width, out.height);
+  ctx.drawImage(src, 0, 0);
+  const a = document.createElement('a');
+  a.download = `${slot.defId}.png`;
+  a.href = out.toDataURL('image/png');
+  a.click();
 }
 
 function removeSlot(slot) {

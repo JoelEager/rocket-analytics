@@ -611,9 +611,12 @@ tbody tr:hover {
   padding-bottom: 0.4rem;
 }
 
-/* Slot remove control: a bordered chip so it reads as a button and is
-   visually distinct from the modal's bare ×. */
-.slot-close {
+/* Slot export/remove controls: bordered chips so they read as buttons
+   and are visually distinct from the modal's bare ×. The export chip
+   carries the row's auto margin, pushing it and the close chip to the
+   slot head's right edge. */
+.slot-close,
+.slot-export {
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -624,11 +627,15 @@ tbody tr:hover {
   font-size: 0.9rem;
   justify-content: center;
   line-height: 1;
-  margin-left: auto;
   padding: 0.4rem 0.6rem;
 }
 
-.slot-close:hover {
+.slot-export {
+  margin-left: auto;
+}
+
+.slot-close:hover,
+.slot-export:hover {
   border-color: var(--accent-strong);
   color: var(--text);
 }

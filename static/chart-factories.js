@@ -52,37 +52,9 @@ const tooltipNames = fullNames => fullNames ? {callbacks: {
 const rowTotal = v => (v && typeof v === 'object')
   ? Object.values(v).reduce((a, b) => a + b, 0) : v;
 
-// A flat bar chart over {label: count} rows.
-function pagedBarChart(canvas, fullNames) {
-  const chart = new Chart(canvas, {
-    type: 'bar',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Launches',
-        data: [],
-        backgroundColor: '#6ea8fe',
-      }],
-    },
-    options: {
-      maintainAspectRatio: false,
-      scales: {
-        y: {ticks: {precision: 0}},
-      },
-      plugins: {
-        legend: {display: false},
-        tooltip: tooltipNames(fullNames),
-      },
-    },
-  });
-  return pagedView(chart, entries => {
-    chart.data.datasets[0].data = entries.map(([, v]) => v);
-  });
-}
-
 // Segment keys a stacked row may carry, in stack order (failures always
-// on top). Yearly data uses orbital/suborbital/failed; 'all time' has no
-// lifetime orbit breakdown, so it stacks success/failed instead.
+// on top). Yearly data uses orbital/suborbital/failed; 'all time' has
+// no lifetime orbit breakdown, so it stacks success/failed instead.
 const SEGMENTS = {
   success:    {label: 'Success',    color: '#4ade80'},
   orbital:    {label: 'Orbital',    color: '#6ea8fe'},
@@ -243,33 +215,45 @@ function donutChart(pane, fullNames, group) {
   });
 }
 
-// A single-series line over {x: count} rows — currently launches per
-// year for one entity. Area fill, whole-column hover like the bars.
-function lineChart(canvas) {
+// Series colors for multi-entity lines — the donut's chromatic palette
+// minus its neutral 'Other' tail.
+const LINE_COLORS = DONUT_COLORS.slice(0, -2);
+
+// Line chart over {entity: {x: count}} series — currently launches per
+// year for the entities picked in the slot's entity filter. A single
+// series gets an area fill and no legend; multiple series split into
+// colored lines with a bottom legend. fullNames resolves entity keys
+// to display names like the other factories.
+function lineChart(canvas, fullNames) {
   const chart = new Chart(canvas, {
     type: 'line',
-    data: {
-      labels: [],
-      datasets: [{
-        label: 'Launches',
-        data: [],
-        borderColor: '#6ea8fe',
-        backgroundColor: 'rgba(110, 168, 254, 0.15)',
-        fill: true,
-        pointRadius: 3,
-        tension: 0.25,
-      }],
-    },
+    data: {labels: [], datasets: []},
     options: {
       maintainAspectRatio: false,
       interaction: {mode: 'index', intersect: false},
       scales: {
         y: {beginAtZero: true, ticks: {precision: 0}},
       },
-      plugins: {legend: {display: false}},
+      plugins: {legend: {display: false, position: 'bottom'}},
     },
   });
   return singleView(chart, entries => {
-    chart.data.datasets[0].data = entries.map(([, v]) => v);
+    // X labels are the union of every series' keys, sorted — entity
+    // picks with no launches in a year still get a point at 0.
+    const years = [...new Set(entries.flatMap(([, s]) => Object.keys(s)))]
+      .sort();
+    chart.data.labels = years;
+    const multi = entries.length > 1;
+    chart.data.datasets = entries.map(([key, series], i) => ({
+      label: fullNames?.[key] || key,
+      data: years.map(y => series[y] ?? 0),
+      borderColor: LINE_COLORS[i % LINE_COLORS.length],
+      backgroundColor: multi ? LINE_COLORS[i % LINE_COLORS.length]
+                             : 'rgba(110, 168, 254, 0.15)',
+      fill: !multi,
+      pointRadius: 3,
+      tension: 0.25,
+    }));
+    chart.options.plugins.legend.display = multi;
   });
 }
